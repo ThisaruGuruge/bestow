@@ -30,6 +30,13 @@ type File struct {
 	source string
 }
 
+type FileInfo struct {
+	Exists   bool
+	Dir      bool
+	Symlink  bool
+	LinkPath string
+}
+
 // Lists all the files in a given directory. The direcrtory path should be given as
 // the parent directory name and the directory name.
 // It will throw errors if the paths are incorrect or there are permission issues/IO issues
@@ -224,4 +231,10 @@ func GetPathSegments(path string) []string {
 		return []string{child}
 	}
 	return append(GetPathSegments(filepath.Clean(parent)), child)
+}
+
+func IsSameFile(src, dest string) bool {
+	srcInfo, _ := os.Stat(src)
+	destInfo, _ := os.Stat(dest)
+	return os.SameFile(srcInfo, destInfo)
 }

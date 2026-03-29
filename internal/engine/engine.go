@@ -41,10 +41,11 @@ func (e *EngineError) Error() string {
 
 func (e *EngineError) Unwrap() error { return e.Cause }
 
-type ActionContext struct {
-	Action Action
-	Args   []string
-	DryRun bool
+type CommandContext struct {
+	Action   Action
+	Args     []string
+	DryRun   bool
+	Conflict ResolveStrategy
 }
 
 type ExecutionContext struct {
@@ -54,76 +55,95 @@ type ExecutionContext struct {
 	Ignore      IgnoreList
 }
 
-func Execute(ctx *ActionContext, cfg *config.Config) error {
-	log.Debug("executing", "config", cfg, "context", ctx)
+type Engine struct {
+	Source      string
+	Destination string
+	Ignore      IgnoreList
+	Args        *[]string
+	Action      Action
+	PackageList *[]string
+	Operations  *[]Operation
+	Strategy    ResolveStrategy
+}
+
+func NewEngine(ctx *CommandContext, cfg *config.Config) (*Engine, error) {
 	ignoreList, err := newIgnoreList(cfg.Source)
-	executionCtx := &ExecutionContext{
+	if err != nil {
+		return nil, &EngineError{
+			Message: "failed to initialize the engine",
+			Command: ctx.Action,
+		}
+	}
+	return &Engine{
 		Source:      cfg.Source,
 		Destination: cfg.Destination,
 		Ignore:      *ignoreList,
-	}
-	packageList, err := getPackageList(ctx, cfg, ignoreList)
-	if err != nil {
+		Args:        &ctx.Args,
+		Action:      ctx.Action,
+		Operations:  &[]Operation{},
+		Strategy:    ctx.Conflict,
+	}, nil
+}
+
+func (e *Engine) Execute() error {
+	if err := e.populatePackageList(); err != nil {
 		return &EngineError{
 			Message: "failed to read the files",
-			Command: ctx.Action,
+			Command: e.Action,
 			Cause:   err,
 		}
 	}
-	executionCtx.PackageList = *packageList
-	log.Debug("packages received", "packages", packageList)
-	log.Info("found candidates", "context", executionCtx)
-	operations, err := populateOperations(*ctx, *executionCtx)
-	if err != nil {
+	if err := e.populateOperations(); err != nil {
 		return &EngineError{
 			Message: "failed to opulate operations",
-			Command: ctx.Action,
+			Command: e.Action,
 			Cause:   err,
 		}
 	}
-	output.Success(fmt.Sprint("operation: ", ctx.Action))
 	// I'm sorry, but for sentimental reasons, I will not accept any AI-generated PRs here.
-	if err := validateOperations(&operations); err != nil {
+	if err := e.validateOperations(); err != nil {
 		return &EngineError{
 			Message: "invalid operation",
-			Command: ctx.Action,
+			Command: e.Action,
 			Cause:   err,
 		}
+	}
+	for _, operation := range *e.Operations {
+		output.Success(fmt.Sprintf("[Copy]: %s -> %s", operation.Source, operation.Destination))
 	}
 	return nil
 }
 
-func getPackageList(ctx *ActionContext, cfg *config.Config, ignoreList *IgnoreList) (*[]string, error) {
-	source := cfg.Source
-	log.Debug("retrieving package list", "source", source)
+func (e *Engine) populatePackageList() error {
+	log.Debug("populating package list", "source", e.Source)
 	var pkgCandidates []string
-	if len(ctx.Args) == 0 {
-		log.Warn("no packages provided, processing all the packages", "action", ctx.Action)
+	if len(*e.Args) == 0 {
+		log.Warn("no packages provided, processing all the packages", "action", e.Action)
 		var err error
-		pkgCandidates, err = file.ListAllDirectories(source)
+		pkgCandidates, err = file.ListAllDirectories(e.Source)
 		if err != nil {
-			return nil, &EngineError{
+			return &EngineError{
 				Message: "failed to read packages from source",
-				Command: ctx.Action,
+				Command: e.Action,
 				Cause:   err,
 			}
 		}
 	} else {
-		for _, pkgCandidate := range ctx.Args {
-			isDir, err := file.IsDir(filepath.Join(source, pkgCandidate))
+		for _, pkgCandidate := range *e.Args {
+			isDir, err := file.IsDir(filepath.Join(e.Source, pkgCandidate))
 			if err != nil {
-				return nil, &EngineError{
+				return &EngineError{
 					Message: "failed to read package",
-					Command: ctx.Action,
+					Command: e.Action,
 					Package: pkgCandidate,
 					Cause:   err,
 				}
 			}
 			if !isDir {
-				return nil, &EngineError{
+				return &EngineError{
 					Message: "failed to read package",
 					Package: pkgCandidate,
-					Command: ctx.Action,
+					Command: e.Action,
 				}
 			}
 			pkgCandidates = append(pkgCandidates, pkgCandidate)
@@ -131,12 +151,13 @@ func getPackageList(ctx *ActionContext, cfg *config.Config, ignoreList *IgnoreLi
 
 		log.Debug("retrieved candidates for packages", "candidates", pkgCandidates)
 	}
-	packages, err := filterPackages(pkgCandidates, *ignoreList)
+	packages, err := filterPackages(pkgCandidates, e.Ignore)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return &packages, nil
+	e.PackageList = &packages
+	log.Debug("package list populated", "package_list", e.PackageList)
+	return nil
 }
 
 func filterPackages(candidates []string, ignoreList IgnoreList) ([]string, error) {

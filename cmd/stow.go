@@ -26,11 +26,19 @@ If no packages are provided, all the pakcages inside the source will be stowed.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		log.Debug("running stow command", "flags", cmd.Flags(), "args", args)
-		ctx := engine.ActionContext{
-			Action: engine.ActionStow,
-			Args:   args,
+		flagValues := getConflictFlags(cmd)
+		conflictResolution, err := conflictResolve(flagValues)
+		if err != nil {
+			return err
 		}
-		err := engine.Execute(&ctx, cfg)
+
+		ctx := engine.CommandContext{
+			Action:   engine.ActionStow,
+			Args:     args,
+			Conflict: conflictResolution,
+		}
+		engine, err := engine.NewEngine(&ctx, cfg)
+		engine.Execute()
 		if err != nil {
 			return err
 		}
@@ -40,9 +48,39 @@ If no packages are provided, all the pakcages inside the source will be stowed.
 
 func init() {
 	addOperationFlags(stowCmd.Flags())
-
-	stowCmd.PersistentFlags().BoolP(FlagForce, "f", false, "remove the existing file and create the symlink")
-	stowCmd.PersistentFlags().BoolP(FlagAdopt, "a", false, "move the existing file to the source and create the symlinks")
+	addConflictResolutionFlags(stowCmd.Flags())
 
 	rootCmd.AddCommand(stowCmd)
+}
+
+func getConflictFlags(cmd *cobra.Command) []boolFlagValue {
+	// TODO: Handle errors; maybe we can ignore these
+	force, _ := cmd.Flags().GetBool(FlagForce)
+	adopt, _ := cmd.Flags().GetBool(FlagAdopt)
+	backup, _ := cmd.Flags().GetBool(FlagBackup)
+	interactive, _ := cmd.Flags().GetBool(FlagInteractive)
+
+	flagValues := []boolFlagValue{
+		{
+			name:     FlagForce,
+			value:    force,
+			strategy: engine.ResolveForce,
+		},
+		{
+			name:     FlagAdopt,
+			value:    adopt,
+			strategy: engine.ResolveAdopt,
+		},
+		{
+			name:     FlagBackup,
+			value:    backup,
+			strategy: engine.ResolveBackup,
+		},
+		{
+			name:     FlagInteractive,
+			value:    interactive,
+			strategy: engine.ResolveInteractive,
+		},
+	}
+	return flagValues
 }

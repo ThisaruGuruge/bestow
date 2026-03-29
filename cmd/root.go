@@ -21,12 +21,14 @@ import (
 const rootCmdName = "bestow"
 
 const (
-	FlagVerbose    string = "verbose"
-	FlagDryRun     string = "dry-run"
-	FlagConfigFile string = "config-file"
-	FlagProfile    string = "profile"
-	FlagForce      string = "force"
-	FlagAdopt      string = "adopt"
+	FlagVerbose     string = "verbose"
+	FlagDryRun      string = "dry-run"
+	FlagConfigFile  string = "config-file"
+	FlagProfile     string = "profile"
+	FlagForce       string = "force"
+	FlagAdopt       string = "adopt"
+	FlagBackup      string = "backup"
+	FlagInteractive string = "interactive"
 )
 
 var version = "dev"
