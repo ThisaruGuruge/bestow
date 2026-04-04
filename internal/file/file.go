@@ -3,12 +3,16 @@ package file
 import (
 	"bufio"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/ThisaruGuruge/bestow/internal/constant"
 	"github.com/ThisaruGuruge/bestow/internal/log"
 )
+
+var createdDirs = make(map[string]bool)
 
 type FileError struct {
 	Message string
@@ -34,6 +38,8 @@ const (
 	ExistingDir            ExistingType = "ExistingDirectory"
 )
 
+const BackupFileExtension = "bak"
+
 // Lists all the files in a given directory. The direcrtory path should be given as
 // the parent directory name and the directory name.
 // It will throw errors if the paths are incorrect or there are permission issues/IO issues
@@ -41,24 +47,24 @@ const (
 // This calls itself recursively to get all the files (including the files inside subdirectories).
 // The result is added to the `fileList` provided.
 // No directory will be listed in the file list, only the files.
-func ListAllFilesInDir(parent string, dirName string, fileList *[]string) error {
+func ListAllFilesInDir(parent string, dirName string) ([]string, error) {
 	directoryPath := filepath.Join(parent, dirName)
 	if directoryPath == "" {
-		return &FileError{
+		return nil, &FileError{
 			Message: "path name is empty",
 			Path:    directoryPath,
 		}
 	}
 	stat, statErr := os.Stat(directoryPath)
 	if os.IsNotExist(statErr) {
-		return &FileError{
+		return nil, &FileError{
 			Message: "error occurred while reading the directory",
 			Path:    directoryPath,
 			Cause:   statErr,
 		}
 	}
 	if !stat.IsDir() {
-		return &FileError{
+		return nil, &FileError{
 			Message: "provided path is not a directory",
 			Path:    directoryPath,
 		}
@@ -66,22 +72,27 @@ func ListAllFilesInDir(parent string, dirName string, fileList *[]string) error 
 
 	files, err := os.ReadDir(directoryPath)
 	if err != nil {
-		return &FileError{
+		return nil, &FileError{
 			Message: "failed to read the content of the directory",
 			Path:    directoryPath,
 			Cause:   err,
 		}
 	}
+	result := []string{}
 	for _, file := range files {
 		if file.IsDir() {
 			dirPath := filepath.Join(dirName, file.Name())
-			ListAllFilesInDir(parent, dirPath, fileList)
-			continue
+			subItems, err := ListAllFilesInDir(parent, dirPath)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, subItems...)
+		} else {
+			fileName := filepath.Join(dirName, file.Name())
+			result = append(result, fileName)
 		}
-		fileName := filepath.Join(dirName, file.Name())
-		*fileList = append(*fileList, fileName)
 	}
-	return nil
+	return result, nil
 }
 
 // Lists all the files in a given directory
@@ -236,14 +247,15 @@ func GetExistingFileType(src, dest string) (ExistingType, error) {
 			Cause:   err,
 		}
 	}
+	if stat.Mode().IsRegular() {
+		log.Debug("found regular file")
+		return ExistingRegularFile, nil
+	}
 	if stat.IsDir() {
 		log.Debug("found directory", "path", dest)
 		return ExistingDir, nil
 	}
-	if stat.Mode()&fs.ModeSymlink == 0 {
-		log.Debug("found regular file", "path", dest)
-		return ExistingRegularFile, nil
-	}
+
 	log.Debug("found symlink", "path", dest)
 	srcInfo, err := getFileInfo(src)
 	if err != nil {
@@ -254,6 +266,7 @@ func GetExistingFileType(src, dest string) (ExistingType, error) {
 		return ExistingRegularFile, err
 	}
 	if os.SameFile(srcInfo, destInfo) {
+		log.Debug("found managed symlink", "source", src, "destination", dest)
 		return ExistingManagedSymlink, nil
 	}
 	return ExistingForeignSymlink, nil
@@ -269,4 +282,73 @@ func getFileInfo(path string) (os.FileInfo, error) {
 		}
 	}
 	return stat, nil
+}
+
+func Link(src, dest string) error {
+	destParent := filepath.Dir(dest)
+	if !createdDirs[destParent] {
+		if err := CreateDir(destParent); err != nil {
+			return err
+		}
+		createdDirs[destParent] = true
+	}
+	if err := os.Symlink(src, dest); err != nil {
+		return &FileError{
+			Message: "failed to create symlink",
+			Path:    dest,
+			Cause:   err,
+		}
+	}
+	log.Debug("link created", "source", src, "destination", dest)
+	return nil
+}
+
+func Remove(path string) error {
+	if err := os.Remove(path); err != nil {
+		return &FileError{
+			Message: "failed to remove the existing symlink/file",
+			Path:    path,
+			Cause:   err,
+		}
+	}
+	return nil
+}
+
+func Backup(path string) error {
+	fileName := filepath.Base(path)
+	newFileName := strings.Join([]string{fileName, constant.AppName, BackupFileExtension}, ".")
+	newFullPath := filepath.Join(filepath.Dir(path), newFileName)
+	if err := os.Rename(path, newFullPath); err != nil {
+		return &FileError{
+			Message: "failed to rename the file",
+			Path:    path,
+			Cause:   err,
+		}
+	}
+
+	return nil
+}
+func Copy(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return &FileError{
+			Message: "failed to read the file",
+			Path:    src,
+			Cause:   err,
+		}
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dest)
+	if err != nil {
+		return &FileError{
+			Message: "failed to open the file",
+			Path:    dest,
+			Cause:   err,
+		}
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	return err
 }

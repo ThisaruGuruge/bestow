@@ -9,7 +9,6 @@ type FileAction string
 
 const (
 	FileActionLink       FileAction = "Link"
-	FileActionUpdateLink FileAction = "Update and Link"
 	FileActionSkip       FileAction = "Skip"
 	FileActionRemoveLink FileAction = "Remove and Link"
 	FileActionBackupLink FileAction = "Backup and Link"
@@ -20,7 +19,8 @@ func (e *Engine) resolveFileAction(operation *Operation, strategy ResolveStrateg
 	log.Debug("Resolving file actions", "operation", operation, "strategy", strategy, "existing_type", existing)
 	switch existing {
 	case file.ExistingManagedSymlink:
-		operation.Action = FileActionUpdateLink
+		log.Info("symlink already exists, skipping", "destination", operation.Destination, "strategy", strategy, "existing_type", existing)
+		operation.Action = FileActionSkip
 	case file.ExistingDir:
 		return resolveExistingDir(operation, strategy)
 	case file.ExistingRegularFile:

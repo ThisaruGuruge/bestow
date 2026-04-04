@@ -2,6 +2,7 @@ package engine
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/ThisaruGuruge/bestow/internal/constant"
 	"github.com/ThisaruGuruge/bestow/internal/file"
@@ -27,22 +28,19 @@ type Operation struct {
 
 func (e *Engine) populateOperations() ([]Operation, error) {
 	result := []Operation{}
-	var action Action = e.Action
-	var source, destination string
-	if action == ActionUnstow {
-		source = e.Destination
-		destination = e.Source
-	} else {
-		source = e.Source
-		destination = e.Destination
-	}
-
-	result, err := e.getRootOperation(result, source, destination)
-	if err != nil {
-		return nil, err
+	if slices.Contains(*e.PackageList, RootDir) {
+		rootOperations, err := e.getRootOperation(result, e.Source, e.Destination)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rootOperations...)
 	}
 
 	for _, pkg := range *e.PackageList {
+		// Skip processing root directory as a package
+		if pkg == RootDir {
+			continue
+		}
 		pacakgeOperations, err := e.getPackageOperation(pkg)
 		if err != nil {
 			return nil, err
@@ -82,8 +80,7 @@ func (e *Engine) getRootOperation(operations []Operation, src, dest string) ([]O
 }
 
 func (e *Engine) getPackageOperation(pkg string) ([]Operation, error) {
-	sourceFileList := []string{}
-	err := file.ListAllFilesInDir(e.Source, pkg, &sourceFileList)
+	sourceFileList, err := file.ListAllFilesInDir(e.Source, pkg)
 	if err != nil {
 		return nil, &EngineError{
 			Message: "failed to read the package contents",
@@ -141,6 +138,92 @@ func (e *Engine) resolveOperation(operation *Operation) error {
 		strategy, _ := resolver.Resolve(e.Source, e.Destination, existing)
 		if err := e.resolveFileAction(operation, strategy, existing); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (e *Engine) stow(operations []Operation) error {
+	for _, operation := range operations {
+		err := e.stowOperation(&operation)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Engine) stowOperation(operation *Operation) error {
+	switch operation.Action {
+	case FileActionSkip:
+		return nil
+	case FileActionLink:
+		return createLink(operation.Source, operation.Destination)
+	case FileActionRemoveLink:
+		return updateLink(operation.Source, operation.Destination)
+	case FileActionBackupLink:
+		return backupLink(operation.Source, operation.Destination)
+	case FileActionAdoptLink:
+		return adoptLink(operation.Source, operation.Destination)
+	}
+	return nil
+}
+
+func (e *Engine) unstow(operations []Operation) error {
+
+	return nil
+}
+
+func createLink(src, dest string) error {
+	if err := file.Link(src, dest); err != nil {
+		return &EngineError{
+			Message: "failed to stow the file",
+			Cause:   err,
+		}
+	}
+	return nil
+}
+
+func updateLink(src, dest string) error {
+	if err := file.Remove(dest); err != nil {
+		return &EngineError{
+			Message: "failed to stow the file",
+			Cause:   err,
+		}
+	}
+	if err := createLink(src, dest); err != nil {
+		return &EngineError{
+			Message: "failed to stow the file",
+			Cause:   err,
+		}
+	}
+	return nil
+}
+
+func backupLink(src, dest string) error {
+	if err := file.Backup(dest); err != nil {
+		return &EngineError{
+			Message: "failed to backup existing file",
+			Cause:   err,
+		}
+	}
+	if err := createLink(src, dest); err != nil {
+		return err
+	}
+	return nil
+}
+
+func adoptLink(src, dest string) error {
+	if err := file.Copy(dest, src); err != nil {
+		return &EngineError{
+			Message: "failed to adopt file from destination",
+			Cause:   err,
+		}
+	}
+	if err := file.Link(src, dest); err != nil {
+		return &EngineError{
+			Message: "failed to stow the file",
+			Cause:   err,
 		}
 	}
 	return nil

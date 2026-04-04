@@ -25,7 +25,7 @@ will create symlinks for each file inside the 'nvim' directory, while maintainin
 If no packages are provided, all the pakcages inside the source will be stowed.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		log.Debug("running stow command", "flags", cmd.Flags(), "args", args)
+		log.Debug("running stow command", "args", args)
 		flagValues := getConflictFlags(cmd)
 		conflictResolution, err := conflictResolve(flagValues)
 		if err != nil {

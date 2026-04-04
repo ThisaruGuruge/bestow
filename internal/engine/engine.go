@@ -18,6 +18,8 @@ const (
 	ActionUnstow Action = "unstow"
 )
 
+const RootDir string = "."
+
 type EngineError struct {
 	Message string
 	Command Action
@@ -62,6 +64,7 @@ type Engine struct {
 	Action      Action
 	PackageList *[]string
 	Strategy    ResolveStrategy
+	DryRun      bool
 }
 
 func NewEngine(ctx *CommandContext, cfg *config.Config) (*Engine, error) {
@@ -88,6 +91,7 @@ func NewEngine(ctx *CommandContext, cfg *config.Config) (*Engine, error) {
 		Action:      ctx.Action,
 		PackageList: &packages,
 		Strategy:    ctx.Conflict,
+		DryRun:      ctx.DryRun,
 	}, nil
 }
 
@@ -96,9 +100,25 @@ func (e *Engine) Execute() error {
 	if err != nil {
 		return err
 	}
-	// TODO: Check dry run and execute the correct one
+	operations = filterSkipFiles(operations)
 	// TODO: Check the length of the operations array after filtering and fail if len = 0
-	e.executeDryRun(operations)
+	if len(operations) == 0 {
+		return &EngineError{
+			Message: "no operations left for process",
+			Command: e.Action,
+		}
+	}
+	e.executeOperations(operations)
+	return nil
+}
+
+func (e *Engine) executeOperations(operations []Operation) error {
+	switch e.Action {
+	case ActionStow:
+		e.stow(operations)
+	case ActionUnstow:
+		e.unstow(operations)
+	}
 	return nil
 }
 
@@ -138,6 +158,8 @@ func populatePackageList(src string, args []string, ignore IgnoreList) ([]string
 		if err != nil {
 			return nil, err
 		}
+		// Add the root package
+		pkgCandidates = append([]string{"."}, pkgCandidates...)
 	} else {
 		pkgCandidates, err = getPackagesFromArgs(src, args)
 		if err != nil {
@@ -163,14 +185,15 @@ func getAllPackages(src string) ([]string, error) {
 func getPackagesFromArgs(src string, candidates []string) ([]string, error) {
 	result := []string{}
 	for _, candidate := range candidates {
-		isDir, err := file.IsDir(filepath.Join(src, candidate))
+		pkgPath := filepath.Clean(candidate)
+		isDir, err := file.IsDir(filepath.Join(src, pkgPath))
 		if err != nil {
 			return nil, err
 		}
 		if !isDir {
 			return nil, err
 		}
-		result = append(result, candidate)
+		result = append(result, pkgPath)
 	}
 	return result, nil
 }
@@ -190,4 +213,15 @@ func filterPackages(candidates []string, ignoreList IgnoreList) ([]string, error
 		result = append(result, candidate)
 	}
 	return result, nil
+}
+
+func filterSkipFiles(operations []Operation) []Operation {
+	result := []Operation{}
+	for _, operation := range operations {
+		if operation.Action == FileActionSkip {
+			continue
+		}
+		result = append(result, operation)
+	}
+	return result
 }
