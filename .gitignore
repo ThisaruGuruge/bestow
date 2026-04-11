@@ -1,3 +1,10 @@
 build/
 bin/
 
+# Coverage Reports
+coverage.out
+coverage.html
+
+# Generated Test Files
+**/bestow_test*
+
