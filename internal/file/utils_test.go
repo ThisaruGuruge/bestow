@@ -30,7 +30,7 @@ func removeTestFile(path string) error {
 	return nil
 }
 
-func createTempDirStructure() {
+func createTempDirStructure() string {
 	tempDir, err := os.MkdirTemp(".", "bestow_test_*")
 	if err != nil {
 		fmt.Println("failed to create the temp directory for testing")
@@ -41,7 +41,7 @@ func createTempDirStructure() {
 		fmt.Println("failed to retrieve the absolute path of the test directory")
 		os.Exit(1)
 	}
-	testDir = &absPath
+	return absPath
 }
 
 func createDirectory(parent, name string, t *testing.T) string {

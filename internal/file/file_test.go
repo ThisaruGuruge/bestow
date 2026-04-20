@@ -12,8 +12,6 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/log"
 )
 
-var testDir *string
-
 type testDirectory struct {
 	parent string
 	src    string
@@ -24,13 +22,13 @@ func TestMain(m *testing.M) {
 	fmt.Println("Running File Tests")
 	log.SetLogger(log.NewCharmLogger())
 
-	createTempDirStructure()
-	log.Info("Created the temp directory", "test_directory_path", *testDir)
+	testDir := createTempDirStructure()
+	log.Info("Created the temp directory", "test_directory_path", testDir)
 
 	code := m.Run()
 
 	log.Info("Finished File Tests. Cleaning up")
-	os.RemoveAll(*testDir)
+	os.RemoveAll(testDir)
 
 	os.Exit(code)
 }
@@ -89,21 +87,63 @@ func TestIsDir(t *testing.T) {
 }
 
 func TestCreateFile(t *testing.T) {
-	dir := createTestDirectory("test_create_file", t).src
-	testFile := "test_file.txt"
-	testFileContent := "sample file for testing"
-	if err := CreateFile(testFile, dir, testFileContent); err != nil {
-		t.Fatalf("failed to create the test file: %v", err)
+	testDir := createTestDirectory("test_create_file", t)
+	dirWithPerm := testDir.src
+	dirWithNoPerm := createDirectory(dirWithPerm, "no_perm", t)
+	setPerm(dirWithNoPerm, false, t)
+	noPermFileName := "test_file_no_perm"
+	noPermFilePath := filepath.Join(dirWithNoPerm, noPermFileName)
+	noPermError := &FileError{
+		Message: "failed to write to file",
+		Path:    noPermFilePath,
+		Cause:   errors.New(fmt.Sprintf("open %s: permission denied", noPermFilePath)),
 	}
-	lines, err := ReadLines(filepath.Join(dir, testFile))
-	if err != nil {
-		t.Fatalf("failed to read the file: %v", err)
+	tests := map[string]struct {
+		dir      string
+		testFile string
+		content  string
+		err      error
+	}{
+		"regular_file": {
+			content:  "sample content for file with permisssions",
+			dir:      dirWithPerm,
+			testFile: "test_create_file.txt",
+			err:      nil,
+		},
+		"no_perm": {
+			content:  "sample content for file with no permissions",
+			dir:      dirWithNoPerm,
+			testFile: noPermFileName,
+			err:      noPermError,
+		},
 	}
-	if len(lines) != 1 {
-		t.Fatalf("file content mismatch; expected: %s actual: [%s]", testFileContent, strings.Join(lines, ", "))
-	}
-	if lines[0] != testFileContent {
-		t.Fatalf("file content mismatch; expected: %s actual: %s", testFileContent, lines[0])
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := CreateFile(tc.testFile, tc.dir, tc.content)
+			if err != nil {
+				if tc.err != nil {
+					if tc.err.Error() != err.Error() {
+						t.Fatalf("error type mismatch; expected: %v, actual: %v", tc.err, err)
+					}
+				} else {
+					t.Fatalf("error occurred %v; expected: %s", err, tc.content)
+				}
+			} else {
+				if tc.err != nil {
+					t.Fatalf("expected error; %v", tc.err)
+				}
+				lines, err := ReadLines(filepath.Join(tc.dir, tc.testFile))
+				if err != nil {
+					t.Fatalf("failed to read the file: %v", err)
+				}
+				if len(lines) != 1 {
+					t.Fatalf("file content mismatch; expected: %s actual: [%s]", tc.content, strings.Join(lines, ", "))
+				}
+				if lines[0] != tc.content {
+					t.Fatalf("file content mismatch; expected: %s actual: %s", tc.content, lines[0])
+				}
+			}
+		})
 	}
 }
 
