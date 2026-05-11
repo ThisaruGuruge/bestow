@@ -1,3 +1,7 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import "github.com/ThisaruGuruge/bestow/internal/file"

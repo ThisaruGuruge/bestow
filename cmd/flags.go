@@ -1,12 +1,14 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/ThisaruGuruge/bestow/internal/engine"
-	"github.com/ThisaruGuruge/bestow/internal/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -45,15 +47,12 @@ func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
 	}
 }
 
-func checkVerbose(cmd *cobra.Command) error {
+func checkVerbose(cmd *cobra.Command) (bool, error) {
 	verbose, err := cmd.Flags().GetBool(FlagVerbose)
 	if err != nil {
-		return err
+		return false, err
 	}
-	if verbose {
-		log.SetLevel(log.LevelDebug)
-	}
-	return nil
+	return verbose, nil
 }
 
 func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error) {
@@ -68,7 +67,7 @@ func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error)
 		for _, flag := range enabledFlags {
 			flags = append(flags, flag.name)
 		}
-		return engine.ResolveSkip, errors.New(fmt.Sprintf("flags %s are mutually exclusive", strings.Join(flags, ", ")))
+		return engine.ResolveSkip, fmt.Errorf("flags %s are mutually exclusive", strings.Join(flags, ", "))
 	}
 	if len(enabledFlags) == 1 {
 		return enabledFlags[0].strategy, nil

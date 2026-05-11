@@ -1,3 +1,7 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package constant
 
 const (

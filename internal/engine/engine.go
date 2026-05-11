@@ -1,195 +1,170 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/file"
-	"github.com/ThisaruGuruge/bestow/internal/log"
-	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
 type Action string
 
 const (
+	ActionInit   Action = "init"
 	ActionStow   Action = "stow"
 	ActionUnstow Action = "unstow"
 )
 
-type EngineError struct {
-	Message string
-	Command Action
-	Package string
-	Cause   error
-}
-
-func (e *EngineError) Error() string {
-	msg := e.Message
-	if e.Command != "" {
-		msg += fmt.Sprintf(": [%s]", e.Command)
-	}
-	if e.Package != "" {
-		msg += fmt.Sprintf(": [%s]", e.Package)
-	}
-	if e.Cause != nil {
-		msg += fmt.Sprintf(": %v", e.Cause)
-	}
-	return msg
-}
-
-func (e *EngineError) Unwrap() error { return e.Cause }
-
 type CommandContext struct {
-	Action   Action
-	Args     []string
-	DryRun   bool
-	Conflict ResolveStrategy
-}
-
-type ExecutionContext struct {
-	Source      string
-	Destination string
-	PackageList []string
-	Ignore      IgnoreList
+	Action           Action
+	Args             []string
+	DryRun           bool
+	ConflictStrategy ResolveStrategy
+	Force            bool
+	IgnoreList       []string
 }
 
 type Engine struct {
 	Source      string
 	Destination string
 	Ignore      IgnoreList
-	Action      Action
-	PackageList *[]string
-	Strategy    ResolveStrategy
-	DryRun      bool
+	Logger      *slog.Logger
+	FileSystem  file.FileSystem
 }
 
-func NewEngine(ctx *CommandContext, cfg *config.Config) (*Engine, error) {
-	ignoreList, err := newIgnoreList(cfg.Source)
+func NewEngine(cfg *config.Config, l *slog.Logger) (*Engine, error) {
+	ignoreList, err := newIgnoreList(cfg.Source, l)
 	if err != nil {
 		return nil, &EngineError{
-			Message: "failed to initialize the action",
-			Command: ctx.Action,
+			Message: "failed to initialize the ignore list",
 			Cause:   err,
 		}
 	}
-	packages, err := populatePackageList(cfg.Source, ctx.Args, *ignoreList)
-	if err != nil {
-		return nil, &EngineError{
-			Message: "failed to initialize the action",
-			Command: ctx.Action,
-			Cause:   err,
-		}
-	}
+	handler := file.NewFileHandler(l)
 	return &Engine{
 		Source:      cfg.Source,
 		Destination: cfg.Destination,
 		Ignore:      *ignoreList,
-		Action:      ctx.Action,
-		PackageList: &packages,
-		Strategy:    ctx.Conflict,
-		DryRun:      ctx.DryRun,
+		Logger:      l.With("component", "engine"),
+		FileSystem:  &handler,
 	}, nil
 }
 
-func (e *Engine) Execute() error {
-	operations, err := e.buildOperations()
+func (e *Engine) Execute(ctx *CommandContext, args *[]string) error {
+	if ctx.Action == ActionInit {
+		if err := e.init(ctx); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	operations, err := e.populateOperations(ctx)
 	if err != nil {
 		return err
 	}
-	e.executeOperations(operations)
+	if err := e.executeOperations(ctx, operations); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (e *Engine) executeOperations(operations []Operation) error {
-	switch e.Action {
+// TODO: When skipping files;
+// - in .bestowignore: debug log
+// - skip because already stowed (due to state of the operation): include a summary
+// - skip because conflict resolution strategy is set to skip: print as same as any other operation
+func (e *Engine) executeOperations(ctx *CommandContext, operations []Operation) error {
+	switch ctx.Action {
 	case ActionStow:
-		e.stow(operations)
+		if err := e.stow(operations); err != nil {
+			return err
+		}
 	case ActionUnstow:
-		e.unstow(operations)
-	}
-	return nil
-}
-
-func (e *Engine) executeDryRun(operations []Operation) {
-	for _, operation := range operations {
-		output.Success(fmt.Sprintf("[%s]: %s -> %s", operation.Action, operation.Source, operation.Destination))
-	}
-}
-
-func (e *Engine) buildOperations() ([]Operation, error) {
-	operations, err := e.populateOperations()
-	if err != nil {
-		return nil, &EngineError{
-			Message: "failed to populate operations",
-			Command: e.Action,
-			Cause:   err,
+		if err := e.unstow(operations); err != nil {
+			return err
 		}
 	}
-	return operations, nil
+	return nil
 }
 
-func populatePackageList(src string, args []string, ignore IgnoreList) ([]string, error) {
-	log.Debug("populating package list", "source", src)
+func (e *Engine) populatePackageList(args []string) ([]string, error) {
+	e.Logger.Debug("populating package list", "source", e.Source)
 	var pkgCandidates []string
 	var err error
 	if len(args) == 0 {
-		pkgCandidates, err = getAllPackages(src)
+		e.Logger.Debug("no packages provided; processing all packages")
+		pkgCandidates, err = e.getAllPackages()
 		if err != nil {
 			return nil, err
 		}
-		// Add the root package
-		pkgCandidates = append([]string{"."}, pkgCandidates...)
 	} else {
-		pkgCandidates, err = getPackagesFromArgs(src, args)
+		pkgCandidates, err = e.getPackagesFromArgs(args)
 		if err != nil {
 			return nil, err
 		}
 	}
-	packages, err := filterPackages(pkgCandidates, ignore)
+	packages, err := e.filterPackages(pkgCandidates, e.Ignore)
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("package list populated", "package_list", packages)
+	e.Logger.Debug("package list populated", "package_list", packages)
 	return packages, nil
 }
 
-func getAllPackages(src string) ([]string, error) {
-	candidates, err := file.ListAllDirectories(src)
+func (e *Engine) getAllPackages() ([]string, error) {
+	candidates, err := e.FileSystem.ListAllDirectories(e.Source)
 	if err != nil {
 		return nil, err
 	}
 	return candidates, nil
 }
 
-func getPackagesFromArgs(src string, candidates []string) ([]string, error) {
+func (e *Engine) getPackagesFromArgs(candidates []string) ([]string, error) {
 	result := []string{}
 	for _, candidate := range candidates {
+		if candidate == "." {
+			return nil, &EngineError{
+				Message: "invalid package; root is not considered a package",
+				Hint:    "move root files to suitable directory (`zsh/`, `bash/`, etc.)",
+			}
+		}
 		pkgPath := filepath.Clean(candidate)
-		isDir, err := file.IsDir(filepath.Join(src, pkgPath))
+		isDir, err := e.FileSystem.IsDir(filepath.Join(e.Source, pkgPath))
 		if err != nil {
-			return nil, err
+			return nil, &EngineError{
+				Message: "failed to read the package",
+				Cause:   err,
+			}
 		}
 		if !isDir {
-			return nil, err
+			return nil, &EngineError{
+				Message: "failed to read the package; path is not a directory",
+				Hint:    fmt.Sprintf("path: %s", pkgPath),
+			}
 		}
 		result = append(result, pkgPath)
 	}
 	return result, nil
 }
 
-func filterPackages(candidates []string, ignoreList IgnoreList) ([]string, error) {
-	log.Debug("filtering packages", "candidates", candidates, "filter", ignoreList.items)
+func (e *Engine) filterPackages(candidates []string, ignoreList IgnoreList) ([]string, error) {
+	e.Logger.Debug("filtering packages", "candidates", candidates, "filter", ignoreList.items)
 	result := []string{}
 	for _, candidate := range candidates {
-		shouldIgnore, err := ignoreList.shouldIgnore(candidate, rootPackage)
+		shouldIgnore, err := ignoreList.shouldIgnore(candidate, "")
 		if err != nil {
 			return nil, err
 		}
 		if shouldIgnore {
-			log.Debug("Ignoring package candidate", "candidate", candidate)
+			e.Logger.Debug("ignoring package candidate", "candidate", candidate)
 			continue
 		}
+		e.Logger.Debug("adding package to process", "package", candidate)
 		result = append(result, candidate)
 	}
 	return result, nil

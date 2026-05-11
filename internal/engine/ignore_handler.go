@@ -1,3 +1,7 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import (
@@ -8,9 +12,9 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/file"
 )
 
-func readIgnoreFile(source string, patterns *[]string) error {
+func readIgnoreFile(source string, patterns *[]string, handler file.FileHandler) error {
 	filePath := filepath.Join(source, constant.IgnoreFile)
-	exists, err := file.Exists(filePath)
+	exists, err := handler.Exists(filePath)
 	if err != nil {
 		return &EngineError{
 			Message: "error occurred while reading the ignore file",
@@ -20,7 +24,7 @@ func readIgnoreFile(source string, patterns *[]string) error {
 	if !exists {
 		return nil
 	}
-	lines, err := file.ReadLines(filePath)
+	lines, err := handler.ReadLines(filePath)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to read the ignore file",

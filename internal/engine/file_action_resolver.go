@@ -1,39 +1,43 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import (
 	"github.com/ThisaruGuruge/bestow/internal/file"
-	"github.com/ThisaruGuruge/bestow/internal/log"
 )
 
 type FileAction string
 
 const (
-	FileActionLink       FileAction = "Link"
-	FileActionSkip       FileAction = "Skip"
-	FileActionRemoveLink FileAction = "Remove and Link"
-	FileActionBackupLink FileAction = "Backup and Link"
-	FileActionAdoptLink  FileAction = "Adopt and Link"
+	FileActionLink        FileAction = "Link"
+	FileActionReplaceLink FileAction = "ReplaceLink"
+	FileActionBackupLink  FileAction = "BackupLink"
+	FileActionAdoptLink   FileAction = "AdoptLink"
+	FileActionUnlink      FileAction = "Unlink"
+	FileActionSkip        FileAction = "Skip"
 )
 
 func (e *Engine) resolveFileAction(operation *Operation, strategy ResolveStrategy, existing file.ExistingType) error {
-	log.Debug("Resolving file actions", "source", operation.Source, "destination", operation.Destination, "strategy", strategy, "existing_type", existing)
+	e.Logger.Debug("Resolving file actions", "source", operation.Source, "destination", operation.Destination, "strategy", strategy, "existing_type", existing)
 	switch existing {
 	case file.ExistingManagedSymlink:
-		log.Debug("symlink already exists, skipping", "destination", operation.Destination, "strategy", strategy, "existing_type", existing)
+		e.Logger.Debug("symlink already exists, skipping", "destination", operation.Destination, "strategy", strategy, "existing_type", existing)
 		operation.Action = FileActionSkip
 	case file.ExistingDir:
-		return resolveExistingDir(operation, strategy)
+		return e.resolveExistingDir(operation, strategy)
 	case file.ExistingRegularFile:
-		return resolveRegularFile(operation, strategy)
+		return e.resolveRegularFile(operation, strategy)
 	case file.ExistingForeignSymlink:
-		return resolveForeignSymlink(operation, strategy)
+		return e.resolveForeignSymlink(operation, strategy)
 	}
 	return nil
 }
 
-func resolveExistingDir(operation *Operation, strategy ResolveStrategy) error {
+func (e *Engine) resolveExistingDir(operation *Operation, strategy ResolveStrategy) error {
 	if strategy == ResolveSkip {
-		log.Warn("destination is a directory; skipping the file", "destination", operation.Destination, "destination_type", "DIRECTORY", "strategy", strategy)
+		e.Logger.Warn("destination is a directory; skipping the file", "destination", operation.Destination, "destination_type", "DIRECTORY", "strategy", strategy)
 		operation.Action = FileActionSkip
 		return nil
 	}
@@ -42,13 +46,13 @@ func resolveExistingDir(operation *Operation, strategy ResolveStrategy) error {
 	}
 }
 
-func resolveRegularFile(operation *Operation, strategy ResolveStrategy) error {
+func (e *Engine) resolveRegularFile(operation *Operation, strategy ResolveStrategy) error {
 	switch strategy {
 	case ResolveSkip:
-		log.Warn("destination exists; skipping the file", "destination", operation.Destination, "destination_type", "FILE", "strategy", strategy)
+		e.Logger.Warn("destination exists; skipping the file", "destination", operation.Destination, "destination_type", "FILE", "strategy", strategy)
 		operation.Action = FileActionSkip
 	case ResolveForce:
-		operation.Action = FileActionRemoveLink
+		operation.Action = FileActionReplaceLink
 	case ResolveAdopt:
 		operation.Action = FileActionAdoptLink
 	case ResolveBackup:
@@ -57,13 +61,13 @@ func resolveRegularFile(operation *Operation, strategy ResolveStrategy) error {
 	return nil
 }
 
-func resolveForeignSymlink(operation *Operation, strategy ResolveStrategy) error {
+func (e *Engine) resolveForeignSymlink(operation *Operation, strategy ResolveStrategy) error {
 	switch strategy {
 	case ResolveSkip:
 		operation.Action = FileActionSkip
-		log.Warn("destination exists, skipping the file", "destination", operation.Destination, "destination_type", "FOREIGN SYMLINK", "strategy", strategy)
+		e.Logger.Warn("destination exists, skipping the file", "destination", operation.Destination, "destination_type", "FOREIGN SYMLINK", "strategy", strategy)
 	case ResolveForce:
-		operation.Action = FileActionRemoveLink
+		operation.Action = FileActionReplaceLink
 	case ResolveAdopt:
 		operation.Action = FileActionAdoptLink
 	case ResolveBackup:
@@ -72,7 +76,6 @@ func resolveForeignSymlink(operation *Operation, strategy ResolveStrategy) error
 	return nil
 }
 
-func resolveManagedSymlink(operation *Operation, strategy ResolveStrategy) error {
-
+func (e *Engine) resolveManagedSymlink(operation *Operation, strategy ResolveStrategy) error {
 	return nil
 }

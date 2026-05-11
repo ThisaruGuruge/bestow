@@ -1,12 +1,14 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 
 	"github.com/ThisaruGuruge/bestow/internal/file"
-	"github.com/ThisaruGuruge/bestow/internal/log"
 	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
@@ -20,31 +22,26 @@ const (
 	ResolveInteractive ResolveStrategy = "interactive"
 )
 
-const rootPackage = "."
-
 type Operation struct {
 	Source      string
 	Destination string
 	BackupPath  string
 	Action      FileAction
+	Strategy    ResolveStrategy
 }
 
-func (e *Engine) populateOperations() ([]Operation, error) {
+// TODO: Need to verify if two operations have the same destination.
+// Which should be an error; We should catch it here before proceesing to
+// execute the operations
+func (e *Engine) populateOperations(ctx *CommandContext) ([]Operation, error) {
 	result := []Operation{}
-	if slices.Contains(*e.PackageList, rootPackage) {
-		rootOperations, err := e.getRootOperation(result, e.Source, e.Destination)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, rootOperations...)
+	packageList, err := e.populatePackageList(ctx.Args)
+	if err != nil {
+		return nil, err
 	}
-
-	for _, pkg := range *e.PackageList {
-		if pkg == rootPackage {
-			continue
-		}
-		log.Debug("populating operations for package", "pacakge", pkg)
-		pacakgeOperations, err := e.getPackageOperation(pkg)
+	for _, pkg := range packageList {
+		e.Logger.Debug("populating operations for package", "pacakge", pkg)
+		pacakgeOperations, err := e.getPackageOperation(pkg, ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -53,37 +50,8 @@ func (e *Engine) populateOperations() ([]Operation, error) {
 	return result, nil
 }
 
-func (e *Engine) getRootOperation(operations []Operation, src, dest string) ([]Operation, error) {
-	rootFileList, err := file.ListFiles(e.Source)
-	if err != nil {
-		return nil, &EngineError{
-			Message: "failed to read files from the source root",
-			Package: ".",
-			Cause:   err,
-		}
-	}
-	for _, fileName := range rootFileList {
-		doIgnore, err := e.Ignore.shouldIgnore(fileName, rootPackage)
-		if err != nil {
-			return nil, err
-		}
-		if doIgnore {
-			log.Debug("ignoring the file", "fileName", fileName, "package", rootPackage)
-			continue
-		}
-		srcFile := filepath.Join(src, fileName)
-		destFile := filepath.Join(dest, fileName)
-		operations = append(operations, Operation{
-			Source:      srcFile,
-			Destination: destFile,
-			Action:      FileActionLink,
-		})
-	}
-	return operations, nil
-}
-
-func (e *Engine) getPackageOperation(pkg string) ([]Operation, error) {
-	sourceFileList, err := file.ListAllFilesInDir(e.Source, pkg)
+func (e *Engine) getPackageOperation(pkg string, ctx *CommandContext) ([]Operation, error) {
+	sourceFileList, err := e.FileSystem.ListAllFilesInDir(e.Source, pkg)
 	if err != nil {
 		return nil, &EngineError{
 			Message: "failed to read the package contents",
@@ -97,17 +65,18 @@ func (e *Engine) getPackageOperation(pkg string) ([]Operation, error) {
 			return nil, err
 		}
 		if doIgnore {
-			log.Debug("ignoring the file", "fileName", fileName, "package", pkg)
+			e.Logger.Debug("ignoring the file", "fileName", fileName, "package", pkg)
 			continue
 		}
 		srcFile := filepath.Join(e.Source, fileName)
-		relativePath := filepath.Join(file.GetPathSegments(fileName)[1:]...)
+		relativePath := filepath.Join(e.FileSystem.GetPathSegments(fileName)[1:]...)
 		destFile := filepath.Join(e.Destination, relativePath)
 
 		operations = append(operations, Operation{
 			Source:      srcFile,
 			Destination: destFile,
 			Action:      FileActionLink,
+			Strategy:    ctx.ConflictStrategy,
 		})
 	}
 	return operations, nil
@@ -126,19 +95,18 @@ func (e *Engine) resolveStowOperations(operations *[]Operation) ([]Operation, er
 }
 
 func (e *Engine) resolveStowOperation(operation *Operation) error {
-	destExists, _ := file.Exists(operation.Destination)
+	destExists, _ := e.FileSystem.Exists(operation.Destination)
 	if destExists {
 		// TODO: Doesn't make any sense for the static resolver. But we need this when we have interactive mode
-		existing, err := file.GetExistingFileType(operation.Source, operation.Destination)
+		existing, err := e.FileSystem.GetExistingFileType(operation.Source, operation.Destination)
 		if err != nil {
 			return &EngineError{
 				Message: "failed to check exising file type",
-				Command: e.Action,
 				Cause:   err,
 			}
 		}
-		resolver := StaticResolver{strategy: e.Strategy}
-		strategy, _ := resolver.Resolve(e.Source, e.Destination, existing)
+		resolver := StaticResolver{strategy: operation.Strategy}
+		strategy, err := resolver.Resolve(e.Source, e.Destination, existing)
 		if err := e.resolveFileAction(operation, strategy, existing); err != nil {
 			return err
 		}
@@ -156,24 +124,22 @@ func (e *Engine) resolveUnstowOperations(operations *[]Operation) ([]Operation, 
 }
 
 func (e *Engine) resolveUnstowOperation(operation *Operation) error {
-	destExists, err := file.Exists(operation.Destination)
+	destExists, err := e.FileSystem.Exists(operation.Destination)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to check the destination file",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
 	if !destExists {
-		log.Debug("file have not been stowed", "source", operation.Source)
+		e.Logger.Debug("file have not been stowed", "source", operation.Source)
 		operation.Action = FileActionSkip
 		return nil
 	}
-	existingType, err := file.GetExistingFileType(operation.Source, operation.Destination)
+	existingType, err := e.FileSystem.GetExistingFileType(operation.Source, operation.Destination)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to check the destination file",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
@@ -181,28 +147,21 @@ func (e *Engine) resolveUnstowOperation(operation *Operation) error {
 		operation.Action = FileActionSkip
 		return nil
 	}
-	operation.Action = FileActionRemoveLink
+	operation.Action = FileActionUnlink
 	return nil
 }
 
 func (e *Engine) stow(operations []Operation) error {
-	log.Debug("stowing files")
+	e.Logger.Debug("stowing files")
 	// I'm sorry, but for sentimental reasons, I will not accept any AI-generated PRs here.
 	operations, err := e.resolveStowOperations(&operations)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to resolve stow operation",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
 	operations = filterSkipFiles(operations)
-	if len(operations) == 0 {
-		return &EngineError{
-			Message: "no operations left for stow",
-			Command: e.Action,
-		}
-	}
 	for _, operation := range operations {
 		if err := e.stowOperation(&operation); err != nil {
 			return err
@@ -214,34 +173,30 @@ func (e *Engine) stow(operations []Operation) error {
 func (e *Engine) stowOperation(operation *Operation) error {
 	switch operation.Action {
 	case FileActionSkip:
-		log.Debug("skipping file", "source", operation.Source, "destination", operation.Destination, "action", operation.Action)
+		e.Logger.Debug("skipping file", "source", operation.Source, "destination", operation.Destination, "action", operation.Action)
 		return nil
 	case FileActionLink:
-		return createLink(operation.Source, operation.Destination)
-	case FileActionRemoveLink:
-		return updateLink(operation.Source, operation.Destination)
+		return e.createLink(operation.Source, operation.Destination)
+	case FileActionReplaceLink:
+		return e.updateLink(operation.Source, operation.Destination)
 	case FileActionBackupLink:
-		return backupLink(operation.Source, operation.Destination)
+		return e.backupLink(operation.Source, operation.Destination)
 	case FileActionAdoptLink:
-		return adoptLink(operation.Source, operation.Destination)
+		return e.adoptLink(operation.Source, operation.Destination)
 	}
 	return nil
 }
 
+// TODO: When unstowing, empty directories should be removed.
+// This should be configurable using the config.yaml.
+// Default behavior should be to remove the emplty directory.
 func (e *Engine) unstow(operations []Operation) error {
-	log.Debug("unstowing files", "pacakges", e.PackageList)
+	e.Logger.Debug("unstowing files")
 	operations, err := e.resolveUnstowOperations(&operations)
 	if err != nil {
 		return err
 	}
 	operations = filterSkipFiles(operations)
-	if len(operations) == 0 {
-		return &EngineError{
-			Message: "no files left for unstow",
-			Command: e.Action,
-			Cause:   err,
-		}
-	}
 	for _, operation := range operations {
 		if err := e.unstowOperation(&operation); err != nil {
 			return err
@@ -251,45 +206,52 @@ func (e *Engine) unstow(operations []Operation) error {
 }
 
 func (e *Engine) unstowOperation(operation *Operation) error {
-	log.Debug("unstowing file", "source", operation.Source, "destination", operation.Destination)
-	exists, err := file.Exists(operation.Destination)
+	e.Logger.Debug("unstowing file", "source", operation.Source, "destination", operation.Destination)
+	exists, err := e.FileSystem.Exists(operation.Destination)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to check the destination file",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
 	if !exists {
-		log.Debug("file not found for unstow", "path", operation.Destination)
+		e.Logger.Debug("file not found for unstow", "path", operation.Destination)
 		return nil
 	}
-	fileType, err := file.GetExistingFileType(operation.Source, operation.Destination)
+	fileType, err := e.FileSystem.GetExistingFileType(operation.Source, operation.Destination)
 	if err != nil {
 		return &EngineError{
 			Message: "failed to check the fily type",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
 	if fileType != file.ExistingManagedSymlink {
-		log.Warn("existing file is not managed by bestow", "existing_file", operation.Destination)
+		e.Logger.Warn("existing file is not managed by bestow", "existing_file", operation.Destination)
 		return nil
 	}
-	err = file.Remove(operation.Destination)
+	err = e.FileSystem.Remove(operation.Destination)
+	// TODO: Remove empty files; check config before
+	// TODO: Fix the bug where subdirectories in the packages won't removed-identifying as not empty
+	parent := filepath.Dir(operation.Destination)
+	isEmpty, err := e.FileSystem.IsEmpty(parent)
+	if err != nil {
+		return err
+	}
+	if isEmpty {
+		e.FileSystem.Remove(parent)
+	}
 	if err != nil {
 		return &EngineError{
 			Message: "failed to unstow the file",
-			Command: e.Action,
 			Cause:   err,
 		}
 	}
-	log.Debug("successfully unstowed the file", "source", operation.Source, "destination", operation.Destination)
+	e.Logger.Debug("successfully unstowed the file", "source", operation.Source, "destination", operation.Destination)
 	return nil
 }
 
-func createLink(src, dest string) error {
-	if err := file.Link(src, dest); err != nil {
+func (e *Engine) createLink(src, dest string) error {
+	if err := e.FileSystem.Link(src, dest); err != nil {
 		return &EngineError{
 			Message: "failed to stow the file",
 			Cause:   err,
@@ -299,14 +261,14 @@ func createLink(src, dest string) error {
 	return nil
 }
 
-func updateLink(src, dest string) error {
-	if err := file.Remove(dest); err != nil {
+func (e *Engine) updateLink(src, dest string) error {
+	if err := e.FileSystem.Remove(dest); err != nil {
 		return &EngineError{
 			Message: "failed to stow the file",
 			Cause:   err,
 		}
 	}
-	if err := createLink(src, dest); err != nil {
+	if err := e.createLink(src, dest); err != nil {
 		return &EngineError{
 			Message: "failed to stow the file",
 			Cause:   err,
@@ -315,31 +277,37 @@ func updateLink(src, dest string) error {
 	return nil
 }
 
-func backupLink(src, dest string) error {
-	if err := file.Backup(dest); err != nil {
+func (e *Engine) backupLink(src, dest string) error {
+	if err := e.FileSystem.Backup(dest); err != nil {
 		return &EngineError{
 			Message: "failed to backup existing file",
 			Cause:   err,
 		}
 	}
-	if err := createLink(src, dest); err != nil {
+	if err := e.createLink(src, dest); err != nil {
 		return err
 	}
 	return nil
 }
 
-func adoptLink(src, dest string) error {
-	if err := file.Copy(dest, src); err != nil {
+func (e *Engine) adoptLink(src, dest string) error {
+	if err := e.FileSystem.Copy(dest, src); err != nil {
 		return &EngineError{
 			Message: "failed to adopt file from destination",
 			Cause:   err,
 		}
 	}
-	if err := file.Link(src, dest); err != nil {
+	if err := e.FileSystem.Link(src, dest); err != nil {
 		return &EngineError{
 			Message: "failed to stow the file",
 			Cause:   err,
 		}
 	}
+	return nil
+}
+
+// TODO: Implement this or find a better alternative
+func (e *Engine) removeEmptyDirs(path string) error {
+
 	return nil
 }

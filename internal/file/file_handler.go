@@ -2,32 +2,14 @@ package file
 
 import (
 	"bufio"
-	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ThisaruGuruge/bestow/internal/constant"
-	"github.com/ThisaruGuruge/bestow/internal/log"
 )
-
-var createdDirs = make(map[string]bool)
-
-type FileError struct {
-	Message string
-	Path    string
-	Cause   error
-}
-
-func (e *FileError) Error() string {
-	if e.Cause != nil {
-		return fmt.Sprintf("%s: %s: %v", e.Message, e.Path, e.Cause)
-	}
-	return fmt.Sprintf("%s: %s", e.Message, e.Path)
-}
-
-func (e *FileError) Unwrap() error { return e.Cause }
 
 type ExistingType string
 
@@ -40,6 +22,20 @@ const (
 
 const BackupFileExtension = "bak"
 
+const filePermissions = 0755
+
+type FileHandler struct {
+	CreatedDirs map[string]bool
+	Logger      *slog.Logger
+}
+
+func NewFileHandler(l *slog.Logger) FileHandler {
+	return FileHandler{
+		CreatedDirs: make(map[string]bool),
+		Logger:      l.With("component", "file"),
+	}
+}
+
 // Lists all the files in a given directory. The direcrtory path should be given as
 // the parent directory name and the directory name.
 // It will throw errors if the paths are incorrect or there are permission issues/IO issues
@@ -47,7 +43,7 @@ const BackupFileExtension = "bak"
 // This calls itself recursively to get all the files (including the files inside subdirectories).
 // The result is added to the `fileList` provided.
 // No directory will be listed in the file list, only the files.
-func ListAllFilesInDir(parent string, dirName string) ([]string, error) {
+func (h *FileHandler) ListAllFilesInDir(parent string, dirName string) ([]string, error) {
 	directoryPath := filepath.Join(parent, dirName)
 	if directoryPath == "" {
 		return nil, &FileError{
@@ -82,7 +78,7 @@ func ListAllFilesInDir(parent string, dirName string) ([]string, error) {
 	for _, file := range files {
 		if file.IsDir() {
 			dirPath := filepath.Join(dirName, file.Name())
-			subItems, err := ListAllFilesInDir(parent, dirPath)
+			subItems, err := h.ListAllFilesInDir(parent, dirPath)
 			if err != nil {
 				return nil, err
 			}
@@ -95,13 +91,13 @@ func ListAllFilesInDir(parent string, dirName string) ([]string, error) {
 	return result, nil
 }
 
-// Lists all the files in a given directory
+// Lists all the files in a given directory, excluding directories
 // will return error if the provided path:
 // - does not exist
 // - is not a directory
 // - is not readable/accessible
-func ListFiles(path string) ([]string, error) {
-	isDir, err := IsDir(path)
+func (h *FileHandler) ListFiles(path string) ([]string, error) {
+	isDir, err := h.IsDir(path)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +108,9 @@ func ListFiles(path string) ([]string, error) {
 		}
 	}
 	files, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
 	result := []string{}
 	for _, file := range files {
 		if file.IsDir() {
@@ -119,12 +118,12 @@ func ListFiles(path string) ([]string, error) {
 		}
 		result = append(result, file.Name())
 	}
-	log.Debug("found files in the directory", "directory", path, "files", result)
+	h.Logger.Debug("found files in the directory", "directory", path, "files", result)
 	return result, nil
 }
 
-func ListAllDirectories(source string) ([]string, error) {
-	log.Debug("listing all the directories", "source", source)
+func (h *FileHandler) ListAllDirectories(source string) ([]string, error) {
+	h.Logger.Debug("listing all the directories", "source", source)
 	files, err := os.ReadDir(source)
 	if err != nil {
 		return nil, &FileError{
@@ -139,13 +138,13 @@ func ListAllDirectories(source string) ([]string, error) {
 			result = append(result, file.Name())
 		}
 	}
-	log.Debug("finished searching directories", "dirs", result)
+	h.Logger.Debug("finished searching directories", "dirs", result)
 	return result, nil
 }
 
-func CreateFile(fileName string, path string, data string) error {
+func (h *FileHandler) CreateFile(fileName string, path string, data string) error {
 	fullFileName := filepath.Join(path, fileName)
-	log.Debug("writing to file", "file", fullFileName)
+	h.Logger.Debug("writing to file", "file", fullFileName)
 	if err := os.WriteFile(fullFileName, []byte(data), 0644); err != nil {
 		return &FileError{
 			Message: "failed to write to file",
@@ -153,17 +152,18 @@ func CreateFile(fileName string, path string, data string) error {
 			Cause:   err,
 		}
 	}
-	log.Debug("successfully written to fiile", "path", fullFileName)
+	h.Logger.Debug("successfully written to fiile", "path", fullFileName)
 	return nil
 }
 
-func CreateDir(path string) error {
-	log.Debug("created dirs", "dir_list", createdDirs)
-	if createdDirs[path] {
+func (h *FileHandler) CreateDir(path string) error {
+	logger := h.Logger.With("path", path)
+	logger.Debug("Creating directory")
+	if h.CreatedDirs[path] {
+		logger.Debug("directory already created")
 		return nil
 	}
-	log.Debug("creating dir", "path", path)
-	exists, err := Exists(path)
+	exists, err := h.Exists(path)
 	if err != nil {
 		return &FileError{
 			Message: "failed to read the path",
@@ -172,31 +172,31 @@ func CreateDir(path string) error {
 		}
 	}
 	if exists {
-		log.Debug("directory already exists", "path", path)
-		createdDirs[path] = true
+		logger.Debug("directory already exists")
+		h.CreatedDirs[path] = true
 		return nil
 	}
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, filePermissions); err != nil {
 		return &FileError{
 			Message: "failed to create directory",
 			Path:    path,
 			Cause:   err,
 		}
 	}
-	createdDirs[path] = true
-	log.Debug("created directory", "path", path)
+	h.CreatedDirs[path] = true
+	logger.Debug("created directory", "path", path)
 	return nil
 }
 
-func IsDir(path string) (bool, error) {
-	stat, err := getFileInfo(path)
+func (h *FileHandler) IsDir(path string) (bool, error) {
+	stat, err := h.getFileInfo(path)
 	if err != nil {
 		return false, err
 	}
 	return stat.IsDir(), nil
 }
 
-func Exists(path string) (bool, error) {
+func (h *FileHandler) Exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -211,7 +211,7 @@ func Exists(path string) (bool, error) {
 	return true, nil
 }
 
-func ReadLines(path string) ([]string, error) {
+func (h *FileHandler) ReadLines(path string) ([]string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, &FileError{
@@ -236,16 +236,16 @@ func ReadLines(path string) ([]string, error) {
 	return result, nil
 }
 
-func GetPathSegments(path string) []string {
+func (h *FileHandler) GetPathSegments(path string) []string {
 	parent, child := filepath.Split(path)
 	if parent == "" || parent == "/" {
 		return []string{child}
 	}
-	return append(GetPathSegments(filepath.Clean(parent)), child)
+	return append(h.GetPathSegments(filepath.Clean(parent)), child)
 }
 
-func GetExistingFileType(src, dest string) (ExistingType, error) {
-	log.Debug("checking existing file type", "source", src, "destination", dest)
+func (h *FileHandler) GetExistingFileType(src, dest string) (ExistingType, error) {
+	h.Logger.Debug("checking existing file type", "source", src, "destination", dest)
 	stat, err := os.Lstat(dest)
 	if err != nil {
 		return ExistingRegularFile, &FileError{
@@ -255,31 +255,31 @@ func GetExistingFileType(src, dest string) (ExistingType, error) {
 		}
 	}
 	if stat.Mode().IsRegular() {
-		log.Debug("found regular file")
+		h.Logger.Debug("found regular file")
 		return ExistingRegularFile, nil
 	}
 	if stat.IsDir() {
-		log.Debug("found directory", "path", dest)
+		h.Logger.Debug("found directory", "path", dest)
 		return ExistingDir, nil
 	}
 
-	log.Debug("found symlink", "path", dest)
-	srcInfo, err := getFileInfo(src)
+	h.Logger.Debug("found symlink", "path", dest)
+	srcInfo, err := h.getFileInfo(src)
 	if err != nil {
 		return ExistingForeignSymlink, err
 	}
-	destInfo, err := getFileInfo(dest)
+	destInfo, err := h.getFileInfo(dest)
 	if err != nil {
 		return ExistingForeignSymlink, err
 	}
 	if os.SameFile(srcInfo, destInfo) {
-		log.Debug("found managed symlink", "source", src, "destination", dest)
+		h.Logger.Debug("found managed symlink", "source", src, "destination", dest)
 		return ExistingManagedSymlink, nil
 	}
 	return ExistingForeignSymlink, nil
 }
 
-func getFileInfo(path string) (os.FileInfo, error) {
+func (h *FileHandler) getFileInfo(path string) (os.FileInfo, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, &FileError{
@@ -291,9 +291,9 @@ func getFileInfo(path string) (os.FileInfo, error) {
 	return stat, nil
 }
 
-func Link(src, dest string) error {
+func (h *FileHandler) Link(src, dest string) error {
 	destParent := filepath.Dir(dest)
-	if err := CreateDir(destParent); err != nil {
+	if err := h.CreateDir(destParent); err != nil {
 		return err
 	}
 	if err := os.Symlink(src, dest); err != nil {
@@ -303,11 +303,11 @@ func Link(src, dest string) error {
 			Cause:   err,
 		}
 	}
-	log.Debug("link created", "source", src, "destination", dest)
+	h.Logger.Debug("link created", "source", src, "destination", dest)
 	return nil
 }
 
-func Remove(path string) error {
+func (h *FileHandler) Remove(path string) error {
 	if err := os.Remove(path); err != nil {
 		return &FileError{
 			Message: "failed to remove the existing symlink/file",
@@ -318,8 +318,8 @@ func Remove(path string) error {
 	return nil
 }
 
-func Backup(path string) error {
-	log.Debug("backing up file", "path", path)
+func (h *FileHandler) Backup(path string) error {
+	h.Logger.Debug("backing up file", "path", path)
 	fileName := filepath.Base(path)
 	newFileName := strings.Join([]string{fileName, constant.AppName, BackupFileExtension}, ".")
 	newFullPath := filepath.Join(filepath.Dir(path), newFileName)
@@ -330,10 +330,10 @@ func Backup(path string) error {
 			Cause:   err,
 		}
 	}
-	log.Debug("successfully backed up the file", "old", path, "new", newFullPath)
+	h.Logger.Debug("successfully backed up the file", "old", path, "new", newFullPath)
 	return nil
 }
-func Copy(src, dest string) error {
+func (h *FileHandler) Copy(src, dest string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return &FileError{
@@ -356,4 +356,22 @@ func Copy(src, dest string) error {
 
 	_, err = io.Copy(destFile, srcFile)
 	return err
+}
+
+func (h *FileHandler) IsEmpty(path string) (bool, error) {
+	isDir, err := h.IsDir(path)
+	if err != nil {
+		return false, err
+	}
+	if !isDir {
+		return false, &FileError{
+			Message: "provided path is not a directory",
+			Path:    path,
+		}
+	}
+	items, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(items) == 0, nil
 }

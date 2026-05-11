@@ -1,37 +1,49 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package engine
 
 import (
+	"log/slog"
 	"path/filepath"
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
+	"github.com/ThisaruGuruge/bestow/internal/file"
 	"github.com/bmatcuk/doublestar"
 )
 
 type IgnoreList struct {
-	src   string
-	items []string
+	src         string
+	items       []string
+	fileHandler file.FileHandler
+	logger      *slog.Logger
 }
 
-func newIgnoreList(src string) (*IgnoreList, error) {
-	list := &IgnoreList{src: src}
+func newIgnoreList(src string, l *slog.Logger) (*IgnoreList, error) {
+	handler := file.NewFileHandler(l)
+	list := &IgnoreList{src: src, fileHandler: handler, logger: l.With("section", "ignore_handler")}
 
-	//TODO: Should return custom error?
 	// Load global ignore list
 	configHome := config.AppConfigHome()
-	if err := readIgnoreFile(configHome, &list.items); err != nil {
+	if err := readIgnoreFile(configHome, &list.items, handler); err != nil {
 		return nil, err
 	}
 
-	//load package ignore list
-	if err := readIgnoreFile(src, &list.items); err != nil {
+	//load source ignore list
+	if err := readIgnoreFile(src, &list.items, handler); err != nil {
 		return nil, err
 	}
 	return list, nil
 }
 
 func (i *IgnoreList) forPackage(pkg string) ([]string, error) {
+	i.logger.Debug("getting ignore list for package", "package", pkg)
+	if pkg == "" {
+		return i.items, nil
+	}
 	result := append([]string(nil), i.items...)
-	if err := readIgnoreFile(filepath.Join(i.src, pkg), &result); err != nil {
+	if err := readIgnoreFile(filepath.Join(i.src, pkg), &result, i.fileHandler); err != nil {
 		return nil, &EngineError{
 			Message: "failed to read the ignore list for the package",
 			Cause:   err,
@@ -41,15 +53,10 @@ func (i *IgnoreList) forPackage(pkg string) ([]string, error) {
 }
 
 func (i *IgnoreList) shouldIgnore(fileName, pkg string) (bool, error) {
-	var ignoreList []string
-	if pkg == rootPackage {
-		ignoreList = i.items
-	} else {
-		var err error
-		ignoreList, err = i.forPackage(pkg)
-		if err != nil {
-			return false, err
-		}
+	i.logger.Debug("checking ignorability", "package", pkg, "file_name", fileName)
+	ignoreList, err := i.forPackage(pkg)
+	if err != nil {
+		return false, err
 	}
 	for _, ignoreItem := range ignoreList {
 		match, err := doublestar.PathMatch(ignoreItem, fileName)

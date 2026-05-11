@@ -1,12 +1,16 @@
+/*
+All Rights Reversed (ɔ)
+*/
+
 package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/ThisaruGuruge/bestow/internal/constant"
-	"github.com/ThisaruGuruge/bestow/internal/log"
 	"github.com/adrg/xdg"
 	"github.com/spf13/viper"
 )
@@ -52,8 +56,9 @@ func XdgConfigHome() string {
 	return filepath.Join(home, ConfigDir)
 }
 
-func GetConfig(viper *viper.Viper) (*Config, error) {
-	config, err := loadConfig(viper)
+// TODO: Support directory-level config file for different source and destination options
+func GetConfig(viper *viper.Viper, l *slog.Logger) (*Config, error) {
+	config, err := loadConfig(viper, l)
 	if err != nil {
 		return nil, &ConfigError{
 			Message: "failed to read the configs",
@@ -76,8 +81,8 @@ func (e *ConfigError) Error() string {
 
 func (e *ConfigError) Unwrap() error { return e.Cause }
 
-func loadConfig(viper *viper.Viper) (*Config, error) {
-	log.Debug("loading configs")
+func loadConfig(viper *viper.Viper, l *slog.Logger) (*Config, error) {
+	l.Debug("loading configs")
 
 	var raw rawConfig
 	if err := viper.Unmarshal(&raw); err != nil {
@@ -86,7 +91,7 @@ func loadConfig(viper *viper.Viper) (*Config, error) {
 			Cause:   err,
 		}
 	}
-	log.Debug("unmarshaled the configs", "raw", raw)
+	l.Debug("unmarshaled the configs", "raw", raw)
 
 	profileName := viper.GetString(constant.ProfileKey)
 	if profileName == "" {
@@ -106,13 +111,13 @@ func loadConfig(viper *viper.Viper) (*Config, error) {
 		Destination: profile.Destination,
 	}
 
-	if err := setDefaultSource(&cfg); err != nil {
+	if err := setDefaultSource(&cfg, l); err != nil {
 		return nil, err
 	}
-	if err := setDefaultDestination(&cfg); err != nil {
+	if err := setDefaultDestination(&cfg, l); err != nil {
 		return nil, err
 	}
-	log.Debug("config loaded successfully", "cfg", cfg)
+	l.Debug("config loaded successfully", "cfg", cfg)
 
 	return &cfg, nil
 }
