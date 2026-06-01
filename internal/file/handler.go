@@ -23,6 +23,7 @@ const (
 
 // Handler is the implementation of the System using io, os, and bufio go modules.
 type Handler struct {
+	LabelledHandler
 	// Should use mutex here if migrate to go routines
 	createdDirs map[string]bool
 	logger      *slog.Logger
@@ -31,8 +32,9 @@ type Handler struct {
 // NewHandler returns a new Handler with the provided logger l.
 func NewHandler(l *slog.Logger) *Handler {
 	return &Handler{
-		createdDirs: make(map[string]bool),
-		logger:      l.With("component", "file"),
+		LabelledHandler: LabelledHandler{label: ""},
+		createdDirs:     make(map[string]bool),
+		logger:          l.With("component", "file"),
 	}
 }
 

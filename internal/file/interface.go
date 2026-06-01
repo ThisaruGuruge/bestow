@@ -6,6 +6,10 @@ package file
 
 // System provides an abstraction over OS-level file operations.
 type System interface {
+	// Label returns the label that this filesystem operation should print.
+	// Helpful for printing dry run or file system label per each operation.
+	Label() string
+
 	// ListFiles returns a list of all the files in a given parent directory, excluding the directories.
 	// The file list includes the full paths of the files found.
 	ListFiles(parent string) ([]string, error)

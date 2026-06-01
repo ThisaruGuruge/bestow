@@ -14,24 +14,55 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
+type InitContext struct {
+	Force      bool
+	IgnoreList []string
+}
+
 // TODO: Check both files before touching them
-// Check dryrun before executing.
-func (e *Engine) init(ctx *CommandContext) error {
+func (e *Engine) Init(ctx *InitContext) error {
 	e.Logger.Debug("initializing bestow")
 	appConfigDir := config.AppConfigHome()
-	if ctx.DryRun {
-		output.Success("[create]", "directory", appConfigDir)
-
-	} else {
-		if err := e.FileSystem.CreateDir(appConfigDir); err != nil {
-			return err
-		}
+	configFile := filepath.Join(appConfigDir, constant.ConfigFile)
+	ignoreFile := filepath.Join(appConfigDir, constant.IgnoreFile)
+	if err := e.checkExistingFiles(configFile, ignoreFile); err != nil {
+		return err
+	}
+	if err := e.FileSystem.CreateDir(appConfigDir); err != nil {
+		return err
 	}
 	if err := e.createConfigFile(e.Source, e.Destination, ctx.Force, appConfigDir); err != nil {
 		return err
 	}
 	if err := e.createIgnoreFile(appConfigDir, ctx.Force, ctx.IgnoreList); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (e *Engine) checkExistingFiles(configFile, ignoreFile string) error {
+	configExists, err := e.FileSystem.Exists(configFile)
+	if err != nil {
+		return err
+	}
+	ignoreExists, err := e.FileSystem.Exists(ignoreFile)
+	if err != nil {
+		return err
+	}
+	existing := make([]string, 0, 2)
+	if configExists {
+		existing = append(existing, configFile)
+	}
+	if ignoreExists {
+		existing = append(existing, ignoreFile)
+	}
+	if len(existing) > 0 {
+		fileString := strings.Join(existing, ", ")
+		return &HintedError{
+			Op:   fmt.Sprintf("exists %s", fileString),
+			Hint: "remove the existing files or use --force",
+			Err:  ErrFileExists,
+		}
 	}
 	return nil
 }

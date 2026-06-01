@@ -17,6 +17,7 @@ import (
 
 // NoWriteHandler is the implementation of the System using io, os, and bufio go modules.
 type NoWriteHandler struct {
+	LabelledHandler
 	// Should use mutex here if migrate to go routines
 	createdDirs map[string]bool
 	logger      *slog.Logger
@@ -25,8 +26,9 @@ type NoWriteHandler struct {
 // NewNoWriteHandler returns a new NoWriteHandler with the provided logger l.
 func NewNoWriteHandler(l *slog.Logger) *NoWriteHandler {
 	return &NoWriteHandler{
-		createdDirs: make(map[string]bool),
-		logger:      l.With("component", "file"),
+		LabelledHandler: LabelledHandler{label: "[dryrun]"},
+		createdDirs:     make(map[string]bool),
+		logger:          l.With("component", "file"),
 	}
 }
 

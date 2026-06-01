@@ -26,8 +26,6 @@ type CommandContext struct {
 	Args             []string
 	DryRun           bool
 	ConflictStrategy ResolveStrategy
-	Force            bool
-	IgnoreList       []string
 }
 
 type Engine struct {
@@ -43,7 +41,7 @@ func NewEngine(cfg *config.Config, dryrun bool, l *slog.Logger) (*Engine, error)
 	if dryrun {
 		handler = file.NewNoWriteHandler(l)
 	} else {
-		handler = file.NewHandler(l) // TODO: Pass "remove empty parents" parameter
+		handler = file.NewHandler(l)
 	}
 	ignoreList, err := newIgnoreList(cfg.Source, handler, l)
 	if err != nil {
@@ -59,18 +57,11 @@ func NewEngine(cfg *config.Config, dryrun bool, l *slog.Logger) (*Engine, error)
 }
 
 func (e *Engine) Execute(ctx *CommandContext) error {
-	if ctx.Action == ActionInit {
-		if err := e.init(ctx); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	actions, err := e.populateOperations(ctx)
 	if err != nil {
 		return err
 	}
-	if err := e.executeFileActions(actions, ctx.DryRun); err != nil {
+	if err := e.executeFileActions(actions); err != nil {
 		return err
 	}
 	return nil
@@ -80,9 +71,9 @@ func (e *Engine) Execute(ctx *CommandContext) error {
 // - in .bestowignore: debug log
 // - skip because already stowed (due to state of the operation): include a summary
 // - skip because conflict resolution strategy is set to skip: print as same as any other operation
-func (e *Engine) executeFileActions(actions []FileAction, dryrun bool) error {
+func (e *Engine) executeFileActions(actions []FileAction) error {
 	for _, action := range actions {
-		if err := action.Execute(e.FileSystem, dryrun); err != nil {
+		if err := action.Execute(e.FileSystem); err != nil {
 			return err
 		}
 	}

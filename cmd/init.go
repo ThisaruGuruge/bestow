@@ -65,12 +65,11 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parse flag %s: %w", flagInitIgnoreList, err)
 		}
-		ctx := engine.CommandContext{
-			Action:     engine.ActionInit,
+		ctx := engine.InitContext{
 			Force:      force,
 			IgnoreList: ignoreList,
 		}
-		if err := eng.Execute(&ctx); err != nil {
+		if err := eng.Init(&ctx); err != nil {
 			return err
 		}
 		output.Success("successfully initialized bestow")
