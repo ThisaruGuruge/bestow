@@ -17,11 +17,31 @@ var stowCmd = &cobra.Command{
 	Long:    stowLong,
 	Example: stowExamples,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		appLogger.Debug("running stow command", "args", args)
-		flagValues, err := getConflictFlags(cmd)
-		if err != nil {
+		if err := loadConfig(cmd); err != nil {
 			return err
 		}
+		appLogger.Debug("running stow command", "args", args)
+		var force, adopt, backup bool
+		var err error
+		force, err = cmd.Flags().GetBool(FlagForce)
+		if err != nil {
+			return fmt.Errorf("parse flag %s: %w", FlagForce, err)
+		}
+		adopt, err = cmd.Flags().GetBool(FlagAdopt)
+		if err != nil {
+			return fmt.Errorf("parse flag %s: %w", FlagAdopt, err)
+		}
+		backup, err = cmd.Flags().GetBool(FlagBackup)
+		if err != nil {
+			return fmt.Errorf("parse flag %s: %w", FlagBackup, err)
+		}
+
+		flagValues := []boolFlagValue{
+			{name: FlagForce, value: force, strategy: engine.ResolveForce},
+			{name: FlagAdopt, value: adopt, strategy: engine.ResolveAdopt},
+			{name: FlagBackup, value: backup, strategy: engine.ResolveBackup},
+		}
+
 		conflictResolution, err := conflictResolve(flagValues)
 		if err != nil {
 			return err
@@ -35,14 +55,13 @@ var stowCmd = &cobra.Command{
 			Args:             args,
 			ConflictStrategy: conflictResolution,
 		}
-		engine, err := engine.NewEngine(cfg, dryrun, appLogger)
+		eng, err := engine.NewEngine(cfg, dryrun, appLogger)
 		if err != nil {
 			return err
 		}
-		if err := engine.Execute(&ctx); err != nil {
+		if err := eng.Execute(&ctx); err != nil {
 			return err
 		}
-		appLogger.Info("successfully stowed the packages")
 		return nil
 	},
 }
@@ -52,49 +71,4 @@ func init() {
 	addConflictResolutionFlags(stowCmd.Flags())
 
 	rootCmd.AddCommand(stowCmd)
-}
-
-func getConflictFlags(cmd *cobra.Command) ([]boolFlagValue, error) {
-	var force, adopt, backup, interactive bool
-	var err error
-	force, err = cmd.Flags().GetBool(FlagForce)
-	if err != nil {
-		return nil, fmt.Errorf("parse flag %s: %w", FlagForce, err)
-	}
-	adopt, err = cmd.Flags().GetBool(FlagAdopt)
-	if err != nil {
-		return nil, fmt.Errorf("parse flag %s: %w", FlagAdopt, err)
-	}
-	backup, err = cmd.Flags().GetBool(FlagBackup)
-	if err != nil {
-		return nil, fmt.Errorf("parse flag %s: %w", FlagBackup, err)
-	}
-	interactive, err = cmd.Flags().GetBool(FlagInteractive)
-	if err != nil {
-		return nil, fmt.Errorf("parse flag %s: %w", FlagInteractive, err)
-	}
-
-	flagValues := []boolFlagValue{
-		{
-			name:     FlagForce,
-			value:    force,
-			strategy: engine.ResolveForce,
-		},
-		{
-			name:     FlagAdopt,
-			value:    adopt,
-			strategy: engine.ResolveAdopt,
-		},
-		{
-			name:     FlagBackup,
-			value:    backup,
-			strategy: engine.ResolveBackup,
-		},
-		{
-			name:     FlagInteractive,
-			value:    interactive,
-			strategy: engine.ResolveInteractive,
-		},
-	}
-	return flagValues, nil
 }

@@ -22,7 +22,7 @@ const (
 type ActionType int
 
 const (
-	NoOp ActionType = iota
+	UpToDate ActionType = iota
 	Skip
 	Link
 	Replace
@@ -34,7 +34,7 @@ const (
 const backupExtension = ".bestow.backup"
 
 type FileAction interface {
-	Execute(fs file.System) error
+	Execute(fs file.System, label string) error
 	Type() ActionType
 	Source() string
 	Destination() string
@@ -53,13 +53,13 @@ func (fab fileActionBase) Destination() string {
 	return fab.destination
 }
 
-type FileActionNoOp struct {
+type FileActionUpToDate struct {
 	fileActionBase
 	reason string
 }
 
-func newFileActionNoOp(source, destination, reason string) *FileActionNoOp {
-	return &FileActionNoOp{
+func newFileActionUpToDate(source, destination, reason string) *FileActionUpToDate {
+	return &FileActionUpToDate{
 		fileActionBase: fileActionBase{
 			source:      source,
 			destination: destination,
@@ -68,30 +68,32 @@ func newFileActionNoOp(source, destination, reason string) *FileActionNoOp {
 	}
 }
 
-func (f *FileActionNoOp) Execute(fs file.System) error {
-	// Add to summary
+func (f *FileActionUpToDate) Execute(fs file.System, label string) error {
+	output.PrintAction(label, actionSkip, fmt.Sprintf("%s -> %s [%s]", f.source, f.destination, f.reason), output.TypeWarn)
 	return nil
 }
 
-func (f *FileActionNoOp) Type() ActionType {
-	return NoOp
+func (f *FileActionUpToDate) Type() ActionType {
+	return UpToDate
 }
 
 type FileActionSkip struct {
 	fileActionBase
+	reason string
 }
 
-func newFileActionSkip(source, destination string) *FileActionSkip {
+func newFileActionSkip(source, destination, reason string) *FileActionSkip {
 	return &FileActionSkip{
 		fileActionBase: fileActionBase{
 			source:      source,
 			destination: destination,
 		},
+		reason: reason,
 	}
 }
 
-func (f *FileActionSkip) Execute(fs file.System) error {
-	output.PrintAction(fs.Label(), actionSkip, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeWarn)
+func (f *FileActionSkip) Execute(fs file.System, label string) error {
+	output.PrintAction(label, actionSkip, fmt.Sprintf("%s -> %s [%s]", f.destination, f.source, f.reason), output.TypeWarn)
 	return nil
 }
 
@@ -112,11 +114,11 @@ func newFileActionLink(source, destination string) *FileActionLink {
 	}
 }
 
-func (f *FileActionLink) Execute(fs file.System) error {
+func (f *FileActionLink) Execute(fs file.System, label string) error {
 	if err := fs.Link(f.source, f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
+	output.PrintAction(label, actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
 	return nil
 }
 
@@ -137,15 +139,15 @@ func newFileActionReplace(source, destination string) *FileActionReplace {
 	}
 }
 
-func (f *FileActionReplace) Execute(fs file.System) error {
+func (f *FileActionReplace) Execute(fs file.System, label string) error {
 	if err := fs.Remove(f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionRemove, f.destination, output.TypeStep)
+	output.PrintAction(label, actionRemove, f.destination, output.TypeStep)
 	if err := fs.Link(f.source, f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
+	output.PrintAction(label, actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
 	return nil
 }
 
@@ -168,16 +170,15 @@ func newFileActionBackup(source, destination, backup string) *FileActionBackup {
 	}
 }
 
-func (f *FileActionBackup) Execute(fs file.System) error {
-	backupPath := f.destination + backupExtension
-	if err := fs.Move(f.destination, backupPath); err != nil {
+func (f *FileActionBackup) Execute(fs file.System, label string) error {
+	if err := fs.Move(f.destination, f.backup); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionBackup, fmt.Sprintf("%s -> %s", f.destination, f.backup), output.TypeStep)
+	output.PrintAction(label, actionBackup, fmt.Sprintf("%s -> %s", f.destination, f.backup), output.TypeStep)
 	if err := fs.Link(f.source, f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
+	output.PrintAction(label, actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
 	return nil
 }
 
@@ -198,15 +199,15 @@ func newFileActionAdopt(source, destination string) *FileActionAdopt {
 	}
 }
 
-func (f *FileActionAdopt) Execute(fs file.System) error {
+func (f *FileActionAdopt) Execute(fs file.System, label string) error {
 	if err := fs.Move(f.destination, f.source); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionAdopt, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeStep)
+	output.PrintAction(label, actionAdopt, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeStep)
 	if err := fs.Link(f.source, f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
+	output.PrintAction(label, actionLink, fmt.Sprintf("%s -> %s", f.destination, f.source), output.TypeSuccess)
 	return nil
 }
 
@@ -227,22 +228,14 @@ func newFileActionRemove(source, destination string) *FileActionRemove {
 	}
 }
 
-func (f *FileActionRemove) Execute(fs file.System) error {
+func (f *FileActionRemove) Execute(fs file.System, label string) error {
 	if err := fs.Remove(f.destination); err != nil {
 		return err
 	}
-	output.PrintAction(fs.Label(), actionRemove, f.destination, output.TypeSuccess)
+	output.PrintAction(label, actionRemove, f.destination, output.TypeSuccess)
 	return nil
 }
 
 func (f *FileActionRemove) Type() ActionType {
 	return Remove
-}
-
-func affectsDestination(fileAction FileAction) bool {
-	actionType := fileAction.Type()
-	if actionType == NoOp || actionType == Skip {
-		return false
-	}
-	return true
 }

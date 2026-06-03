@@ -47,14 +47,6 @@ func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
 	}
 }
 
-func checkVerbose(cmd *cobra.Command) (bool, error) {
-	verbose, err := cmd.Flags().GetBool(FlagVerbose)
-	if err != nil {
-		return false, fmt.Errorf("parse flag %s: %w", FlagVerbose, err)
-	}
-	return verbose, nil
-}
-
 func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error) {
 	enabledFlags := []boolFlagValue{}
 	for _, flagValue := range flagValues {
@@ -63,7 +55,7 @@ func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error)
 		}
 	}
 	if len(enabledFlags) > 1 {
-		flags := []string{}
+		flags := make([]string, 0, len(enabledFlags))
 		for _, flag := range enabledFlags {
 			flags = append(flags, flag.name)
 		}
@@ -79,5 +71,4 @@ func addConflictResolutionFlags(flags *pflag.FlagSet) {
 	flags.BoolP(FlagForce, "f", false, "remove the existing file and create the symlink")
 	flags.BoolP(FlagAdopt, "a", false, "move the existing file to the source and create the symlink")
 	flags.BoolP(FlagBackup, "b", false, "rename the existing file to <filename>.bak and create the symlink")
-	flags.BoolP(FlagInteractive, "i", false, "resolve conflicts interactively")
 }

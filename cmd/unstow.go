@@ -17,6 +17,9 @@ var unstowCmd = &cobra.Command{
 	Long:    unstowLong,
 	Example: unstowExamples,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := loadConfig(cmd); err != nil {
+			return err
+		}
 		appLogger.Debug("running unstow command", "args", args)
 		dryrun, err := cmd.Flags().GetBool(FlagDryRun)
 		if err != nil {
@@ -33,7 +36,6 @@ var unstowCmd = &cobra.Command{
 		if err := eng.Execute(&ctx); err != nil {
 			return err
 		}
-		appLogger.Info("successfully unstowed the packages")
 		return nil
 	},
 }

@@ -11,29 +11,29 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/file"
+	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
-type Action string
+type Action int
 
 const (
-	ActionInit   Action = "init"
-	ActionStow   Action = "stow"
-	ActionUnstow Action = "unstow"
+	ActionStow Action = iota
+	ActionUnstow
 )
 
 type CommandContext struct {
 	Action           Action
 	Args             []string
-	DryRun           bool
 	ConflictStrategy ResolveStrategy
 }
 
 type Engine struct {
-	Source      string
-	Destination string
-	Ignore      *IgnoreList
-	Logger      *slog.Logger
-	FileSystem  file.System
+	source      string
+	destination string
+	ignore      *IgnoreList
+	logger      *slog.Logger
+	fileSystem  file.System
+	actionLabel string
 }
 
 func NewEngine(cfg *config.Config, dryrun bool, l *slog.Logger) (*Engine, error) {
@@ -47,12 +47,17 @@ func NewEngine(cfg *config.Config, dryrun bool, l *slog.Logger) (*Engine, error)
 	if err != nil {
 		return nil, err
 	}
+	label := ""
+	if dryrun {
+		label = "[dryrun]"
+	}
 	return &Engine{
-		Source:      cfg.Source,
-		Destination: cfg.Destination,
-		Ignore:      ignoreList,
-		Logger:      l.With("component", "engine"),
-		FileSystem:  handler,
+		source:      cfg.Source,
+		destination: cfg.Destination,
+		ignore:      ignoreList,
+		logger:      l.With("component", "engine"),
+		fileSystem:  handler,
+		actionLabel: label,
 	}, nil
 }
 
@@ -61,9 +66,11 @@ func (e *Engine) Execute(ctx *CommandContext) error {
 	if err != nil {
 		return err
 	}
-	if err := e.executeFileActions(actions); err != nil {
+	summary, err := e.executeFileActions(actions)
+	if err != nil {
 		return err
 	}
+	output.PrintSummary(summary)
 	return nil
 }
 
@@ -71,27 +78,42 @@ func (e *Engine) Execute(ctx *CommandContext) error {
 // - in .bestowignore: debug log
 // - skip because already stowed (due to state of the operation): include a summary
 // - skip because conflict resolution strategy is set to skip: print as same as any other operation
-func (e *Engine) executeFileActions(actions []FileAction) error {
+func (e *Engine) executeFileActions(actions []FileAction) (*output.Summary, error) {
+	summary := &output.Summary{}
 	for _, action := range actions {
-		if err := action.Execute(e.FileSystem); err != nil {
-			return err
+		if err := action.Execute(e.fileSystem, e.actionLabel); err != nil {
+			return nil, err
 		}
-	}
-	return nil
-}
+		actionType := action.Type()
+		switch actionType {
+		case UpToDate:
+			summary.UpToDate += 1
+		case Skip:
+			summary.Skipped += 1
+		case Link:
+			summary.Stowed += 1
+		case Replace:
+			summary.Replaced += 1
+		case Backup:
+			summary.Backed += 1
+		case Adopt:
+			summary.Adopted += 1
+		case Remove:
+			summary.Unstowed += 1
+		default:
+			panic(fmt.Sprintf("undefined action %d", actionType))
+		}
 
-type Summary struct {
-	stowed   int
-	skipped  int
-	upToDate int
+	}
+	return summary, nil
 }
 
 func (e *Engine) populatePackageList(args []string) ([]string, error) {
-	e.Logger.Debug("populating package list", "source", e.Source)
+	e.logger.Debug("populating package list", "source", e.source)
 	var pkgCandidates []string
 	var err error
 	if len(args) == 0 {
-		e.Logger.Debug("no packages provided; processing all packages")
+		e.logger.Debug("no packages provided; processing all packages")
 		pkgCandidates, err = e.getAllPackages()
 		if err != nil {
 			return nil, err
@@ -106,20 +128,20 @@ func (e *Engine) populatePackageList(args []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	e.Logger.Debug("package list populated", "package_list", packages)
+	e.logger.Debug("package list populated", "package_list", packages)
 	return packages, nil
 }
 
 func (e *Engine) getAllPackages() ([]string, error) {
-	dirs, err := e.FileSystem.ListDirs(e.Source)
+	dirs, err := e.fileSystem.ListDirs(e.source)
 	if err != nil {
 		return nil, err
 	}
-	candidates := []string{}
+	candidates := make([]string, 0, len(dirs))
 	for _, dir := range dirs {
-		candidate, err := filepath.Rel(e.Source, dir)
+		candidate, err := filepath.Rel(e.source, dir)
 		if err != nil {
-			return nil, fmt.Errorf("rel %s %s: %w", e.Source, dir, err)
+			return nil, fmt.Errorf("rel %s %s: %w", e.source, dir, err)
 		}
 		candidates = append(candidates, candidate)
 	}
@@ -127,7 +149,7 @@ func (e *Engine) getAllPackages() ([]string, error) {
 }
 
 func (e *Engine) getPackagesFromArgs(candidates []string) ([]string, error) {
-	result := []string{}
+	result := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
 		if candidate == "." {
 			return nil, &HintedError{
@@ -137,7 +159,7 @@ func (e *Engine) getPackagesFromArgs(candidates []string) ([]string, error) {
 			}
 		}
 		pkgPath := filepath.Clean(candidate)
-		isDir, err := e.FileSystem.IsDir(filepath.Join(e.Source, pkgPath))
+		isDir, err := e.fileSystem.IsDir(filepath.Join(e.source, pkgPath))
 		if err != nil {
 			return nil, fmt.Errorf("read package %s: %w", candidate, err)
 		}
@@ -154,18 +176,18 @@ func (e *Engine) getPackagesFromArgs(candidates []string) ([]string, error) {
 }
 
 func (e *Engine) filterPackages(candidates []string) ([]string, error) {
-	e.Logger.Debug("filtering packages", "candidates", candidates, "filter", e.Ignore.items)
-	result := []string{}
+	e.logger.Debug("filtering packages", "candidates", candidates, "filter", e.ignore.items)
+	result := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		shouldIgnore, err := e.Ignore.shouldIgnore(candidate, "")
+		shouldIgnore, err := e.ignore.shouldIgnorePkg(candidate)
 		if err != nil {
 			return nil, err
 		}
 		if shouldIgnore {
-			e.Logger.Debug("ignoring package candidate", "candidate", candidate)
+			e.logger.Debug("ignoring package candidate", "candidate", candidate)
 			continue
 		}
-		e.Logger.Debug("adding package to process", "package", candidate)
+		e.logger.Debug("adding package to process", "package", candidate)
 		result = append(result, candidate)
 	}
 	return result, nil

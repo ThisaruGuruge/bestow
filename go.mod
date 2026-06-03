@@ -3,9 +3,9 @@ module github.com/ThisaruGuruge/bestow
 go 1.25.0
 
 require (
+	charm.land/lipgloss/v2 v2.0.3
 	github.com/adrg/xdg v0.5.3
-	github.com/bmatcuk/doublestar v1.3.4
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -13,9 +13,9 @@ require (
 )
 
 require (
-	charm.land/lipgloss/v2 v2.0.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
+	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20251205161215-1948445e3318 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect

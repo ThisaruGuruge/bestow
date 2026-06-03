@@ -9,8 +9,6 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/engine"
-	"github.com/ThisaruGuruge/bestow/internal/output"
-	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 )
 
@@ -26,16 +24,6 @@ var initCmd = &cobra.Command{
 	Short:   InitShort,
 	Long:    initLong,
 	Example: initExamples,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		verbose, err := checkVerbose(cmd)
-		if err != nil {
-			return err
-		}
-		if verbose {
-			logHandler.SetLevel(log.DebugLevel)
-		}
-		return nil
-	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		source, err := cmd.Flags().GetString(flagInitSource)
 		if err != nil {
@@ -43,13 +31,13 @@ var initCmd = &cobra.Command{
 		}
 		destination, err := cmd.Flags().GetString(flagInitDestination)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", flagDestination, err)
+			return fmt.Errorf("parse flag %s: %w", flagInitDestination, err)
 		}
 		force, err := cmd.Flags().GetBool(flagInitForce)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagForce, err)
+			return fmt.Errorf("parse flag %s: %w", flagInitForce, err)
 		}
-		config := config.Config{
+		initCfg := config.Config{
 			Source:      source,
 			Destination: destination,
 		}
@@ -57,7 +45,7 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("parse flag %s: %w", FlagDryRun, err)
 		}
-		eng, err := engine.NewEngine(&config, dryrun, appLogger)
+		eng, err := engine.NewEngine(&initCfg, dryrun, appLogger)
 		if err != nil {
 			return err
 		}
@@ -72,7 +60,6 @@ var initCmd = &cobra.Command{
 		if err := eng.Init(&ctx); err != nil {
 			return err
 		}
-		output.Success("successfully initialized bestow")
 		return nil
 	},
 }

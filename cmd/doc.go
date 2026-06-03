@@ -56,7 +56,7 @@ bestow init --source ~/dotfiles
 bestow init --source ~/dotfiles --destination ~/sandbox
 
 # Provide custom ignore list
-bestow init --source ~/dotfiles --destination ~/sandbox --ignore-list ".git, node_modlues, README.md"
+bestow init --source ~/dotfiles --destination ~/sandbox --ignore-list ".git, node_modules, README.md"
 `
 
 const stowShort string = "Stow creates symlinks between the source packages to destination"

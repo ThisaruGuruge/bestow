@@ -11,29 +11,34 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/file"
-	"github.com/bmatcuk/doublestar"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 type IgnoreList struct {
-	src        string
-	items      []string
-	fileSystem file.System
-	logger     *slog.Logger
+	src          string
+	items        []string
+	fileSystem   file.System
+	logger       *slog.Logger
+	packageLists map[string][]string
 }
 
 func newIgnoreList(src string, fs file.System, l *slog.Logger) (*IgnoreList, error) {
-	list := &IgnoreList{src: src, fileSystem: fs, logger: l.With("section", "ignore_handler")}
+	list := &IgnoreList{src: src, fileSystem: fs, logger: l.With("section", "ignore_handler"), packageLists: make(map[string][]string)}
 
 	// Load global ignore list
 	configHome := config.AppConfigHome()
-	if err := readIgnoreFile(configHome, &list.items, fs); err != nil {
+	ignoreItems, err := readIgnoreFile(configHome, fs)
+	if err != nil {
 		return nil, err
 	}
 
 	//load source ignore list
-	if err := readIgnoreFile(src, &list.items, fs); err != nil {
+	items, err := readIgnoreFile(src, fs)
+	if err != nil {
 		return nil, err
 	}
+	ignoreItems = append(ignoreItems, items...)
+	list.items = ignoreItems
 	return list, nil
 }
 
@@ -42,23 +47,42 @@ func (i *IgnoreList) forPackage(pkg string) ([]string, error) {
 	if pkg == "" {
 		return i.items, nil
 	}
-	result := append([]string(nil), i.items...)
-	if err := readIgnoreFile(filepath.Join(i.src, pkg), &result, i.fileSystem); err != nil {
+	if i.packageLists[pkg] != nil {
+		return i.packageLists[pkg], nil
+	}
+	result, err := readIgnoreFile(filepath.Join(i.src, pkg), i.fileSystem)
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	// Avoid mutating i.items
+	packageList := append(append([]string(nil), i.items...), result...)
+	i.packageLists[pkg] = packageList
+	return packageList, nil
 }
 
-func (i *IgnoreList) shouldIgnore(fileName, pkg string) (bool, error) {
-	i.logger.Debug("checking ignorability", "package", pkg, "file_name", fileName)
+func (i *IgnoreList) shouldIgnorePkgFile(name, pkg string) (bool, error) {
+	i.logger.Debug("checking ignorability", "package", pkg, "file_name", name)
 	ignoreList, err := i.forPackage(pkg)
 	if err != nil {
 		return false, err
 	}
 	for _, ignoreItem := range ignoreList {
-		match, err := doublestar.PathMatch(ignoreItem, fileName)
+		match, err := doublestar.Match(ignoreItem, name)
 		if err != nil {
-			return false, fmt.Errorf("parse %s %s: %w", ignoreItem, fileName, err)
+			return false, fmt.Errorf("parse %s %s: %w", ignoreItem, name, err)
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (i *IgnoreList) shouldIgnorePkg(pkg string) (bool, error) {
+	for _, ignoreItem := range i.items {
+		match, err := doublestar.Match(ignoreItem, pkg)
+		if err != nil {
+			return false, fmt.Errorf("parse %s %s: %w", ignoreItem, pkg, err)
 		}
 		if match {
 			return true, nil
