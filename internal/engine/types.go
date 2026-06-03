@@ -5,7 +5,7 @@ All Rights Reversed (ɔ)
 package engine
 
 type ExecuteSummary struct {
-	Actions          *[]ActionEvent
+	Actions          []ActionEvent
 	OperationSummary *Summary
 }
 

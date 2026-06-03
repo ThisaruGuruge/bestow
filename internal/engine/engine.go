@@ -77,7 +77,7 @@ func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, erro
 	summary := &Summary{}
 	actionList := make([]ActionEvent, 0, len(actions))
 	for _, action := range actions {
-		actions, err := action.Execute(e.fileSystem, e.actionLabel)
+		fileActions, err := action.Execute(e.fileSystem, e.actionLabel)
 		if err != nil {
 			return nil, err
 		}
@@ -100,10 +100,10 @@ func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, erro
 		default:
 			panic(fmt.Sprintf("undefined action %d", actionType))
 		}
-		actionList = append(actionList, *actions...)
+		actionList = append(actionList, fileActions...)
 	}
 	return &ExecuteSummary{
-		Actions:          &actionList,
+		Actions:          actionList,
 		OperationSummary: summary,
 	}, nil
 }

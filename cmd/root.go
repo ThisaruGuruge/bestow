@@ -25,6 +25,7 @@ const rootCmdName = "bestow"
 
 const (
 	FlagVerbose    string = "verbose"
+	FlagQuiet      string = "quiet"
 	FlagDryRun     string = "dry-run"
 	FlagConfigFile string = "config-file"
 	FlagProfile    string = "profile"
@@ -36,12 +37,11 @@ const (
 var version = "dev"
 
 var cfgFile string
-var cfg *config.Config
-var cfgFileFound bool
 
 var (
 	logHandler *log.Logger
 	appLogger  *slog.Logger
+	appOutput  *output.Output
 )
 var initConfigError error
 
@@ -65,7 +65,7 @@ func Execute() {
 		var conflictError *engine.ConflictError
 		if errors.As(err, &hintedError) && hintedError.Hint != "" {
 			appLogger.Error(hintedError.Error())
-			output.PrintHint(hintedError.Hint)
+			appOutput.PrintHint(hintedError.Hint)
 		} else if errors.As(err, &conflictError) {
 			appLogger.Error(conflictError.Error())
 			appLogger.Warn("[conflicts]")
@@ -95,6 +95,7 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool(FlagDryRun, false, "run the command without actually making the file system changes")
 	rootCmd.PersistentFlags().Bool(FlagVerbose, false, "print verbose logs")
+	rootCmd.PersistentFlags().Bool(FlagQuiet, false, "quiet logs; only print the summary")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, FlagConfigFile, "", "provide custom config file")
 	rootCmd.PersistentFlags().String(FlagProfile, "default", "profile to run the command")
 }
@@ -111,14 +112,4 @@ func initConfig() {
 	}
 	viper.SetEnvPrefix(strings.ToUpper(rootCmdName))
 	viper.AutomaticEnv()
-	if err := viper.ReadInConfig(); err != nil {
-		var pathErr *os.PathError
-		if errors.As(err, &pathErr) {
-			cfgFileFound = false
-		} else {
-			initConfigError = err
-		}
-	} else {
-		cfgFileFound = true
-	}
 }

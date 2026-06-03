@@ -9,7 +9,6 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/engine"
-	"github.com/ThisaruGuruge/bestow/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +61,7 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		output.PrintSummary(summary)
+		appOutput.PrintSummary(summary)
 		return nil
 	},
 }

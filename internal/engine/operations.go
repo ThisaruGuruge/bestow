@@ -163,7 +163,7 @@ func (e *Engine) getStowFileAction(candidate OperationCandidate, strategy Resolv
 		e.logger.Debug("existing destination will be replaced", "destination", candidate.destination, "strategy", strategy)
 		return newFileActionReplace(candidate.source, candidate.destination), nil
 	case ResolveSkip:
-		e.logger.Warn("skipping the existing file at the destination", "destination", candidate.destination, "strategy", strategy)
+		e.logger.Debug("skipping the existing file at the destination", "destination", candidate.destination, "strategy", strategy)
 		return newFileActionSkip(candidate.source, candidate.destination, "strategy skip"), nil
 	case ResolveBackup:
 		e.logger.Debug("existing file at the destination will be backed up and replaced", "destination", candidate.destination, "strategy", strategy)
@@ -209,6 +209,8 @@ func (e *Engine) getUnstowFileAction(candidate OperationCandidate) (FileAction, 
 		return newFileActionSkip(candidate.source, candidate.destination, "regular file"), nil
 	case file.ExistingManagedSymlink:
 		return newFileActionRemove(candidate.source, candidate.destination), nil
+	case file.ExistingForeignSymlink:
+		return newFileActionSkip(candidate.source, candidate.destination, "unmanaged symlink"), nil
 	}
 	e.logger.Warn("destination is not managed by bestow", "destination", candidate.destination, "file_type", existing)
 	return newFileActionSkip(candidate.source, candidate.destination, "unmanaged symlink"), nil

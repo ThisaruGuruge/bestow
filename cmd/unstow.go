@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ThisaruGuruge/bestow/internal/engine"
-	"github.com/ThisaruGuruge/bestow/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +17,8 @@ var unstowCmd = &cobra.Command{
 	Long:    unstowLong,
 	Example: unstowExamples,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := loadConfig(cmd); err != nil {
+		cfg, err := loadConfig(cmd)
+		if err != nil {
 			return err
 		}
 		appLogger.Debug("running unstow command", "args", args)
@@ -38,7 +38,7 @@ var unstowCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		output.PrintSummary(summary)
+		appOutput.PrintSummary(summary)
 		return nil
 	},
 }

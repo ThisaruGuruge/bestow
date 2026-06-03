@@ -37,8 +37,8 @@ func (e *Engine) Init(ctx *InitContext) (*ExecuteSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	actions := &[]ActionEvent{*configAction, *ignoreAction}
-	return &ExecuteSummary{Actions: actions}, nil
+	actions := []ActionEvent{*configAction, *ignoreAction}
+	return &ExecuteSummary{Actions: actions, OperationSummary: &Summary{}}, nil
 }
 
 func (e *Engine) checkExistingFiles(configFile, ignoreFile string, force bool) error {
@@ -94,7 +94,7 @@ func (e *Engine) createIgnoreFile(appConfigDir string, force bool, ignoreList []
 	}
 	return &ActionEvent{
 		Label:     "[init]",
-		Action:    "[created]",
+		Action:    actionCreated,
 		Msg:       ignoreFile,
 		EventType: EventSuccess,
 	}, nil
@@ -134,7 +134,7 @@ func (e *Engine) createConfigFile(source, destination string, force bool, appCon
 	}
 	return &ActionEvent{
 		Label:     "[init]",
-		Action:    "[created]",
+		Action:    actionCreated,
 		Msg:       configFile,
 		EventType: EventSuccess,
 	}, nil
