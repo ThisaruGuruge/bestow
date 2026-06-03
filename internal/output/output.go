@@ -51,12 +51,12 @@ func NewOutput(level Level) *Output {
 	}
 }
 
-func (o *Output) PrintAction(action engine.ActionEvent) {
+func (o *Output) PrintAction(action engine.ActionEvent, label string) {
 	var message string
-	if action.Label == "" {
+	if label == "" {
 		message = fmt.Sprintf("%s %s", action.Action, action.Msg)
 	} else {
-		message = fmt.Sprintf("%s %s %s", action.Label, action.Action, action.Msg)
+		message = fmt.Sprintf("%s %s %s", label, action.Action, action.Msg)
 	}
 	var text string
 	switch action.EventType {
@@ -77,7 +77,7 @@ func (o *Output) PrintAction(action engine.ActionEvent) {
 func (o *Output) PrintSummary(summary *engine.ExecuteSummary) {
 	if o.OutputLevel != Quiet {
 		for _, action := range summary.Actions {
-			o.PrintAction(action)
+			o.PrintAction(action, summary.Label)
 		}
 	}
 	o.printSummaryLine(summary.OperationSummary)

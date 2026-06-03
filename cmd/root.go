@@ -43,7 +43,6 @@ var (
 	appLogger  *slog.Logger
 	appOutput  *output.Output
 )
-var initConfigError error
 
 // TODO: Add `config` subcommand (to override the init command)
 var rootCmd = &cobra.Command{
@@ -87,6 +86,9 @@ func init() {
 	}
 	logHandler = log.NewWithOptions(os.Stderr, opts)
 	appLogger = slog.New(logHandler)
+
+	appOutput = output.NewOutput(output.Normal)
+
 	cobra.OnInitialize(initConfig)
 	// Disable showing `completion` in the available commands list while keeping the command available
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true

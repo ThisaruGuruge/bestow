@@ -77,7 +77,7 @@ func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, erro
 	summary := &Summary{}
 	actionList := make([]ActionEvent, 0, len(actions))
 	for _, action := range actions {
-		fileActions, err := action.Execute(e.fileSystem, e.actionLabel)
+		fileActions, err := action.Execute(e.fileSystem)
 		if err != nil {
 			return nil, err
 		}
@@ -105,6 +105,7 @@ func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, erro
 	return &ExecuteSummary{
 		Actions:          actionList,
 		OperationSummary: summary,
+		Label:            e.actionLabel,
 	}, nil
 }
 

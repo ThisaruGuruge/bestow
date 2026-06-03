@@ -7,6 +7,7 @@ package engine
 type ExecuteSummary struct {
 	Actions          []ActionEvent
 	OperationSummary *Summary
+	Label            string
 }
 
 type Summary struct {

@@ -45,9 +45,10 @@ func loadConfig(cmd *cobra.Command) (*config.Config, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		var pathErr *os.PathError
 		if errors.As(err, &pathErr) {
+			appLogger.Warn("config file not found; using $HOME as the default destination")
+		} else {
 			return nil, fmt.Errorf("read config: %w", err)
 		}
-		appLogger.Warn("config file not found; using $HOME as the default destination")
 	}
 	bindOperationalFlags(cmd, viper.GetViper())
 	cfg, err := config.GetConfig(viper.GetViper(), appLogger)

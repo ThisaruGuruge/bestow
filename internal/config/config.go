@@ -116,9 +116,6 @@ func loadConfig(viper *viper.Viper, l *slog.Logger) (*Config, error) {
 		Destination: profile.Destination,
 	}
 
-	if err := setDefaultSource(&cfg, l); err != nil {
-		return nil, err
-	}
 	if err := setDefaultDestination(&cfg, l); err != nil {
 		return nil, err
 	}

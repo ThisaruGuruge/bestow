@@ -7,9 +7,9 @@ package config
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"text/template"
 )
 
@@ -23,6 +23,13 @@ func GetDefaultConfigTemplate(source, destination string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if destination == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("parse home dir: %w", err)
+		}
+		destination = home
+	}
 	data := struct {
 		Source      string
 		Destination string
@@ -35,27 +42,6 @@ func GetDefaultConfigTemplate(source, destination string) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
-}
-
-func setDefaultSource(config *Config, l *slog.Logger) error {
-	l.Debug("checking source config")
-	if config.Source != "" {
-		l.Debug("source is set by configs", "source", config.Source)
-		return nil
-	}
-	l.Debug("no source provided, setting default source")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return &ConfigError{
-			Message:    "failed to read home directory",
-			ConfigName: "source",
-			Value:      "$HOME",
-			Cause:      err,
-		}
-	}
-	config.Source = filepath.Join(home, "dotfiles")
-	l.Debug("default value is set for source", "source", config.Source)
-	return nil
 }
 
 func setDefaultDestination(config *Config, l *slog.Logger) error {
