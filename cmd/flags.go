@@ -59,7 +59,7 @@ func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error)
 		for _, flag := range enabledFlags {
 			flags = append(flags, flag.name)
 		}
-		return engine.ResolveSkip, fmt.Errorf("flags %s are mutually exclusive", strings.Join(flags, ", "))
+		return engine.ResolveSkip, fmt.Errorf("parse flags %s: %w", strings.Join(flags, ", "), ErrIncompatibleFlags)
 	}
 	if len(enabledFlags) == 1 {
 		return enabledFlags[0].strategy, nil

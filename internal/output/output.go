@@ -21,6 +21,11 @@ var stepStyle = lipgloss.NewStyle().
 	Bold(true).
 	Foreground(lipgloss.Cyan)
 
+var skipStyle = lipgloss.NewStyle().
+	Bold(true).
+	Faint(true).
+	Foreground(lipgloss.Green)
+
 var warnStyle = lipgloss.NewStyle().
 	Bold(true).
 	Foreground(lipgloss.Yellow)
@@ -29,7 +34,24 @@ var hintStyle = lipgloss.NewStyle().
 	Bold(true).
 	Foreground(lipgloss.Magenta)
 
-func PrintAction(action engine.ActionEvent) {
+type Level int
+
+const (
+	Normal Level = iota
+	Quiet
+)
+
+type Output struct {
+	OutputLevel Level
+}
+
+func NewOutput(level Level) *Output {
+	return &Output{
+		OutputLevel: level,
+	}
+}
+
+func (o *Output) PrintAction(action engine.ActionEvent) {
 	var message string
 	if action.Label == "" {
 		message = fmt.Sprintf("%s %s", action.Action, action.Msg)
@@ -44,46 +66,53 @@ func PrintAction(action engine.ActionEvent) {
 		text = stepStyle.Render(message)
 	case engine.EventWarn:
 		text = warnStyle.Render(message)
+	case engine.EventSkip:
+		text = skipStyle.Render(message)
 	case engine.EventIgnore:
 		return
 	}
 	lipgloss.Println(text)
 }
 
-func PrintSummary(summary *engine.ExecuteSummary) {
-	for _, action := range *summary.Actions {
-		PrintAction(action)
+func (o *Output) PrintSummary(summary *engine.ExecuteSummary) {
+	if o.OutputLevel != Quiet {
+		for _, action := range summary.Actions {
+			o.PrintAction(action)
+		}
 	}
+	o.printSummaryLine(summary.OperationSummary)
+}
+
+func (o *Output) printSummaryLine(summary *engine.Summary) {
 	summaryFields := 7
 	parts := make([]string, 0, summaryFields)
-	if summary.OperationSummary.Stowed > 0 {
-		parts = append(parts, fmt.Sprintf("stowed: %d", summary.OperationSummary.Stowed))
+	if summary.Stowed > 0 {
+		parts = append(parts, fmt.Sprintf("stowed: %d", summary.Stowed))
 	}
-	if summary.OperationSummary.Unstowed > 0 {
-		parts = append(parts, fmt.Sprintf("unstowed: %d", summary.OperationSummary.Unstowed))
+	if summary.Unstowed > 0 {
+		parts = append(parts, fmt.Sprintf("unstowed: %d", summary.Unstowed))
 	}
-	if summary.OperationSummary.Replaced > 0 {
-		parts = append(parts, fmt.Sprintf("replaced: %d", summary.OperationSummary.Replaced))
+	if summary.Replaced > 0 {
+		parts = append(parts, fmt.Sprintf("replaced: %d", summary.Replaced))
 	}
-	if summary.OperationSummary.Backed > 0 {
-		parts = append(parts, fmt.Sprintf("backed up: %d", summary.OperationSummary.Backed))
+	if summary.Backed > 0 {
+		parts = append(parts, fmt.Sprintf("backed up: %d", summary.Backed))
 	}
-	if summary.OperationSummary.Adopted > 0 {
-		parts = append(parts, fmt.Sprintf("adopted: %d", summary.OperationSummary.Adopted))
+	if summary.Adopted > 0 {
+		parts = append(parts, fmt.Sprintf("adopted: %d", summary.Adopted))
 	}
-	if summary.OperationSummary.Skipped > 0 {
-		parts = append(parts, fmt.Sprintf("skipped: %d", summary.OperationSummary.Skipped))
+	if summary.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("skipped: %d", summary.Skipped))
 	}
-	if summary.OperationSummary.UpToDate > 0 {
-		parts = append(parts, fmt.Sprintf("up to date: %d", summary.OperationSummary.UpToDate))
+	if summary.UpToDate > 0 {
+		parts = append(parts, fmt.Sprintf("up to date: %d", summary.UpToDate))
 	}
 	if len(parts) == 0 {
 		return
 	}
 	lipgloss.Println(strings.Join(parts, "   "))
 }
-
-func PrintHint(hint string) {
+func (o *Output) PrintHint(hint string) {
 	message := "[hint] " + hint
 	lipgloss.Fprintln(os.Stderr, hintStyle.Render(message))
 }
