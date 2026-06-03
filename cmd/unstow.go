@@ -22,9 +22,9 @@ var unstowCmd = &cobra.Command{
 			return err
 		}
 		appLogger.Debug("running unstow command", "args", args)
-		dryrun, err := cmd.Flags().GetBool(FlagDryRun)
+		dryrun, err := cmd.Flags().GetBool(flagDryRun)
 		if err != nil {
-			return fmt.Errorf("parse %s: %w", FlagDryRun, err)
+			return fmt.Errorf("parse %s: %w", flagDryRun, err)
 		}
 		eng, err := engine.NewEngine(cfg, dryrun, appLogger)
 		if err != nil {

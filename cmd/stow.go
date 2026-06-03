@@ -23,37 +23,37 @@ var stowCmd = &cobra.Command{
 		}
 		appLogger.Debug("running stow command", "args", args)
 		var force, adopt, backup bool
-		force, err = cmd.Flags().GetBool(FlagForce)
+		force, err = cmd.Flags().GetBool(flagForce)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagForce, err)
+			return fmt.Errorf("parse flag %s: %w", flagForce, err)
 		}
-		adopt, err = cmd.Flags().GetBool(FlagAdopt)
+		adopt, err = cmd.Flags().GetBool(flagAdopt)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagAdopt, err)
+			return fmt.Errorf("parse flag %s: %w", flagAdopt, err)
 		}
-		backup, err = cmd.Flags().GetBool(FlagBackup)
+		backup, err = cmd.Flags().GetBool(flagBackup)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagBackup, err)
+			return fmt.Errorf("parse flag %s: %w", flagBackup, err)
+		}
+		var strategy engine.ResolveStrategy
+		if force {
+			strategy = engine.ResolveForce
+		}
+		if adopt {
+			strategy = engine.ResolveAdopt
+		}
+		if backup {
+			strategy = engine.ResolveBackup
 		}
 
-		flagValues := []boolFlagValue{
-			{name: FlagForce, value: force, strategy: engine.ResolveForce},
-			{name: FlagAdopt, value: adopt, strategy: engine.ResolveAdopt},
-			{name: FlagBackup, value: backup, strategy: engine.ResolveBackup},
-		}
-
-		conflictResolution, err := conflictResolve(flagValues)
+		dryrun, err := cmd.Flags().GetBool(flagDryRun)
 		if err != nil {
-			return err
-		}
-		dryrun, err := cmd.Flags().GetBool(FlagDryRun)
-		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagDryRun, err)
+			return fmt.Errorf("parse flag %s: %w", flagDryRun, err)
 		}
 		ctx := engine.CommandContext{
 			Action:           engine.ActionStow,
 			Args:             args,
-			ConflictStrategy: conflictResolution,
+			ConflictStrategy: strategy,
 		}
 		eng, err := engine.NewEngine(cfg, dryrun, appLogger)
 		if err != nil {
@@ -70,7 +70,7 @@ var stowCmd = &cobra.Command{
 
 func init() {
 	addOperationFlags(stowCmd.Flags())
-	addConflictResolutionFlags(stowCmd.Flags())
+	addConflictResolutionFlags(stowCmd)
 
 	rootCmd.AddCommand(stowCmd)
 }

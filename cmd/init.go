@@ -41,9 +41,9 @@ var initCmd = &cobra.Command{
 			Source:      source,
 			Destination: destination,
 		}
-		dryrun, err := cmd.Flags().GetBool(FlagDryRun)
+		dryrun, err := cmd.Flags().GetBool(flagDryRun)
 		if err != nil {
-			return fmt.Errorf("parse flag %s: %w", FlagDryRun, err)
+			return fmt.Errorf("parse flag %s: %w", flagDryRun, err)
 		}
 		eng, err := engine.NewEngine(&initCfg, dryrun, appLogger)
 		if err != nil {

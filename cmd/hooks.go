@@ -19,24 +19,19 @@ import (
 var ErrIncompatibleFlags = errors.New("mutually exclusive flags")
 
 func setupLogging(cmd *cobra.Command) error {
-	verbose, err := cmd.Flags().GetBool(FlagVerbose)
+	verbose, err := cmd.Flags().GetBool(flagVerbose)
 	if err != nil {
-		return fmt.Errorf("parse flag %s: %w", FlagVerbose, err)
+		return fmt.Errorf("parse flag %s: %w", flagVerbose, err)
 	}
-	quiet, err := cmd.Flags().GetBool(FlagQuiet)
+	quiet, err := cmd.Flags().GetBool(flagQuiet)
 	if err != nil {
-		return fmt.Errorf("parse flag %s: %w", FlagQuiet, err)
-	}
-	if verbose && quiet {
-		return fmt.Errorf("parse flag %s %s: %w", FlagVerbose, FlagQuiet, ErrIncompatibleFlags)
+		return fmt.Errorf("parse flag %s: %w", flagQuiet, err)
 	}
 	if verbose {
 		logHandler.SetLevel(log.DebugLevel)
 	}
 	if quiet {
-		appOutput = output.NewOutput(output.Quiet)
-	} else {
-		appOutput = output.NewOutput(output.Normal)
+		appOutput.SetLevel(output.Quiet)
 	}
 	return nil
 }

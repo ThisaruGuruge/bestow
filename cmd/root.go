@@ -23,17 +23,6 @@ import (
 
 const rootCmdName = "bestow"
 
-const (
-	FlagVerbose    string = "verbose"
-	FlagQuiet      string = "quiet"
-	FlagDryRun     string = "dry-run"
-	FlagConfigFile string = "config-file"
-	FlagProfile    string = "profile"
-	FlagForce      string = "force"
-	FlagAdopt      string = "adopt"
-	FlagBackup     string = "backup"
-)
-
 var version = "dev"
 
 var cfgFile string
@@ -95,11 +84,13 @@ func init() {
 	// Hide the `help` subcommand from the subcommand list (only allow `-h/--help` flags)
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 
-	rootCmd.PersistentFlags().Bool(FlagDryRun, false, "run the command without actually making the file system changes")
-	rootCmd.PersistentFlags().Bool(FlagVerbose, false, "print verbose logs")
-	rootCmd.PersistentFlags().Bool(FlagQuiet, false, "quiet logs; only print the summary")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, FlagConfigFile, "", "provide custom config file")
-	rootCmd.PersistentFlags().String(FlagProfile, "default", "profile to run the command")
+	rootCmd.PersistentFlags().Bool(flagDryRun, false, "run the command without actually making the file system changes")
+	rootCmd.PersistentFlags().Bool(flagVerbose, false, "print verbose logs")
+	rootCmd.PersistentFlags().Bool(flagQuiet, false, "quiet logs; only print the summary")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, flagConfigFile, "", "provide custom config file")
+	rootCmd.PersistentFlags().String(flagProfile, "default", "profile to run the command")
+
+	rootCmd.MarkFlagsMutuallyExclusive(flagQuiet, flagVerbose)
 }
 
 func initConfig() {

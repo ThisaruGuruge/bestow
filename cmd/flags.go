@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/ThisaruGuruge/bestow/internal/engine"
 	"github.com/spf13/cobra"
@@ -17,6 +16,17 @@ import (
 const (
 	flagSource      = "source"
 	flagDestination = "destination"
+)
+
+const (
+	flagVerbose    string = "verbose"
+	flagQuiet      string = "quiet"
+	flagDryRun     string = "dry-run"
+	flagConfigFile string = "config-file"
+	flagProfile    string = "profile"
+	flagForce      string = "force"
+	flagAdopt      string = "adopt"
+	flagBackup     string = "backup"
 )
 
 type boolFlagValue struct {
@@ -31,10 +41,10 @@ func addOperationFlags(fs *pflag.FlagSet) {
 }
 
 func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
-	if f := cmd.Flags().Lookup(FlagProfile); f != nil {
-		v.BindPFlag(FlagProfile, f)
+	if f := cmd.Flags().Lookup(flagProfile); f != nil {
+		v.BindPFlag(flagProfile, f)
 	}
-	profile := v.GetString(FlagProfile)
+	profile := v.GetString(flagProfile)
 	if profile == "" {
 		profile = "default"
 	}
@@ -47,28 +57,10 @@ func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
 	}
 }
 
-func conflictResolve(flagValues []boolFlagValue) (engine.ResolveStrategy, error) {
-	enabledFlags := []boolFlagValue{}
-	for _, flagValue := range flagValues {
-		if flagValue.value {
-			enabledFlags = append(enabledFlags, flagValue)
-		}
-	}
-	if len(enabledFlags) > 1 {
-		flags := make([]string, 0, len(enabledFlags))
-		for _, flag := range enabledFlags {
-			flags = append(flags, flag.name)
-		}
-		return engine.ResolveSkip, fmt.Errorf("parse flags %s: %w", strings.Join(flags, ", "), ErrIncompatibleFlags)
-	}
-	if len(enabledFlags) == 1 {
-		return enabledFlags[0].strategy, nil
-	}
-	return engine.ResolveSkip, nil
-}
+func addConflictResolutionFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolP(flagForce, "f", false, "remove the existing file and create the symlink")
+	cmd.Flags().BoolP(flagAdopt, "a", false, "move the existing file to the source and create the symlink")
+	cmd.Flags().BoolP(flagBackup, "b", false, "rename the existing file to <filename>.bak and create the symlink")
 
-func addConflictResolutionFlags(flags *pflag.FlagSet) {
-	flags.BoolP(FlagForce, "f", false, "remove the existing file and create the symlink")
-	flags.BoolP(FlagAdopt, "a", false, "move the existing file to the source and create the symlink")
-	flags.BoolP(FlagBackup, "b", false, "rename the existing file to <filename>.bak and create the symlink")
+	cmd.MarkFlagsMutuallyExclusive(flagForce, flagAdopt, flagBackup)
 }
