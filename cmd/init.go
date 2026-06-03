@@ -9,6 +9,7 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/engine"
+	"github.com/ThisaruGuruge/bestow/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -57,9 +58,11 @@ var initCmd = &cobra.Command{
 			Force:      force,
 			IgnoreList: ignoreList,
 		}
-		if err := eng.Init(&ctx); err != nil {
+		summary, err := eng.Init(&ctx)
+		if err != nil {
 			return err
 		}
+		output.PrintSummary(summary)
 		return nil
 	},
 }

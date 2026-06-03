@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ThisaruGuruge/bestow/internal/engine"
+	"github.com/ThisaruGuruge/bestow/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -33,9 +34,11 @@ var unstowCmd = &cobra.Command{
 			Action: engine.ActionUnstow,
 			Args:   args,
 		}
-		if err := eng.Execute(&ctx); err != nil {
+		summary, err := eng.Execute(&ctx)
+		if err != nil {
 			return err
 		}
+		output.PrintSummary(summary)
 		return nil
 	},
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/constant"
-	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
 type InitContext struct {
@@ -19,25 +18,27 @@ type InitContext struct {
 	IgnoreList []string
 }
 
-// TODO: Check both files before touching them
-func (e *Engine) Init(ctx *InitContext) error {
+func (e *Engine) Init(ctx *InitContext) (*ExecuteSummary, error) {
 	e.logger.Debug("initializing bestow")
 	appConfigDir := config.AppConfigHome()
 	configFile := filepath.Join(appConfigDir, constant.ConfigFile)
 	ignoreFile := filepath.Join(appConfigDir, constant.IgnoreFile)
 	if err := e.checkExistingFiles(configFile, ignoreFile, ctx.Force); err != nil {
-		return err
+		return nil, err
 	}
 	if err := e.fileSystem.CreateDir(appConfigDir); err != nil {
-		return err
+		return nil, err
 	}
-	if err := e.createConfigFile(e.source, e.destination, ctx.Force, appConfigDir); err != nil {
-		return err
+	configAction, err := e.createConfigFile(e.source, e.destination, ctx.Force, appConfigDir)
+	if err != nil {
+		return nil, err
 	}
-	if err := e.createIgnoreFile(appConfigDir, ctx.Force, ctx.IgnoreList); err != nil {
-		return err
+	ignoreAction, err := e.createIgnoreFile(appConfigDir, ctx.Force, ctx.IgnoreList)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	actions := &[]ActionEvent{*configAction, *ignoreAction}
+	return &ExecuteSummary{Actions: actions}, nil
 }
 
 func (e *Engine) checkExistingFiles(configFile, ignoreFile string, force bool) error {
@@ -70,16 +71,16 @@ func (e *Engine) checkExistingFiles(configFile, ignoreFile string, force bool) e
 	return nil
 }
 
-func (e *Engine) createIgnoreFile(appConfigDir string, force bool, ignoreList []string) error {
+func (e *Engine) createIgnoreFile(appConfigDir string, force bool, ignoreList []string) (*ActionEvent, error) {
 	e.logger.Debug("creating ignore file")
 	ignoreFile := filepath.Join(appConfigDir, constant.IgnoreFile)
 	exists, err := e.fileSystem.Exists(ignoreFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
 		if !force {
-			return &HintedError{
+			return nil, &HintedError{
 				Op:   fmt.Sprintf("create ignorefile %s", ignoreFile),
 				Hint: "use --force to overwrite",
 				Err:  ErrFileExists,
@@ -89,10 +90,14 @@ func (e *Engine) createIgnoreFile(appConfigDir string, force bool, ignoreList []
 	}
 	e.logger.Debug("initializing ignore list", "ignore-list", ignoreList)
 	if err := e.fileSystem.CreateFile(ignoreFile, getIgnoreFileContent(ignoreList)); err != nil {
-		return err
+		return nil, err
 	}
-	output.PrintAction("[init]", "[created]", ignoreFile, output.TypeSuccess)
-	return nil
+	return &ActionEvent{
+		Label:     "[init]",
+		Action:    "[created]",
+		Msg:       ignoreFile,
+		EventType: EventSuccess,
+	}, nil
 }
 
 func getIgnoreFileContent(ignoreList []string) string {
@@ -103,16 +108,16 @@ func getIgnoreFileContent(ignoreList []string) string {
 	return strings.Join(result, "\n")
 }
 
-func (e *Engine) createConfigFile(source, destination string, force bool, appConfigDir string) error {
+func (e *Engine) createConfigFile(source, destination string, force bool, appConfigDir string) (*ActionEvent, error) {
 	configFile := filepath.Join(appConfigDir, constant.ConfigFile)
 	e.logger.Debug("creating the config file", "path", configFile)
 	exists, err := e.fileSystem.Exists(configFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if exists {
 		if !force {
-			return &HintedError{
+			return nil, &HintedError{
 				Op:   fmt.Sprintf("create configfile %s", configFile),
 				Hint: "use --force to overwrite",
 				Err:  ErrFileExists,
@@ -122,11 +127,15 @@ func (e *Engine) createConfigFile(source, destination string, force bool, appCon
 	}
 	config, err := config.GetDefaultConfigTemplate(source, destination)
 	if err != nil {
-		return fmt.Errorf("load config %s %s: %w", source, destination, err)
+		return nil, fmt.Errorf("load config %s %s: %w", source, destination, err)
 	}
 	if err := e.fileSystem.CreateFile(configFile, config); err != nil {
-		return err
+		return nil, err
 	}
-	output.PrintAction("[init]", "[created]", configFile, output.TypeSuccess)
-	return nil
+	return &ActionEvent{
+		Label:     "[init]",
+		Action:    "[created]",
+		Msg:       configFile,
+		EventType: EventSuccess,
+	}, nil
 }

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/file"
-	"github.com/ThisaruGuruge/bestow/internal/output"
 )
 
 type Action int
@@ -61,27 +60,25 @@ func NewEngine(cfg *config.Config, dryrun bool, l *slog.Logger) (*Engine, error)
 	}, nil
 }
 
-func (e *Engine) Execute(ctx *CommandContext) error {
+// Execute will execute the operation (stow, unstow) with the provided context.
+func (e *Engine) Execute(ctx *CommandContext) (*ExecuteSummary, error) {
 	actions, err := e.populateOperations(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	summary, err := e.executeFileActions(actions)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	output.PrintSummary(summary)
-	return nil
+	return summary, nil
 }
 
-// TODO: When skipping files;
-// - in .bestowignore: debug log
-// - skip because already stowed (due to state of the operation): include a summary
-// - skip because conflict resolution strategy is set to skip: print as same as any other operation
-func (e *Engine) executeFileActions(actions []FileAction) (*output.Summary, error) {
-	summary := &output.Summary{}
+func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, error) {
+	summary := &Summary{}
+	actionList := make([]ActionEvent, 0, len(actions))
 	for _, action := range actions {
-		if err := action.Execute(e.fileSystem, e.actionLabel); err != nil {
+		actions, err := action.Execute(e.fileSystem, e.actionLabel)
+		if err != nil {
 			return nil, err
 		}
 		actionType := action.Type()
@@ -103,9 +100,12 @@ func (e *Engine) executeFileActions(actions []FileAction) (*output.Summary, erro
 		default:
 			panic(fmt.Sprintf("undefined action %d", actionType))
 		}
-
+		actionList = append(actionList, *actions...)
 	}
-	return summary, nil
+	return &ExecuteSummary{
+		Actions:          &actionList,
+		OperationSummary: summary,
+	}, nil
 }
 
 func (e *Engine) populatePackageList(args []string) ([]string, error) {

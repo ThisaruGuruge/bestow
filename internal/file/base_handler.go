@@ -81,8 +81,7 @@ func (h *baseHandler) ListAllFiles(parent string) ([]string, error) {
 	if !isDir {
 		return nil, fmt.Errorf("listFiles %s: %w", parent, ErrNotDir)
 	}
-	result := []string{}
-
+	var result []string
 	err = filepath.WalkDir(parent, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -159,7 +158,7 @@ func (h *baseHandler) ReadLines(path string) ([]string, error) {
 		return nil, err
 	}
 	defer file.Close()
-	result := []string{}
+	var result []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		result = append(result, scanner.Text())

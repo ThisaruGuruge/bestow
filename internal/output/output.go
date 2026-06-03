@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/ThisaruGuruge/bestow/internal/engine"
 )
 
 var successStyle = lipgloss.NewStyle().
@@ -28,48 +29,53 @@ var hintStyle = lipgloss.NewStyle().
 	Bold(true).
 	Foreground(lipgloss.Magenta)
 
-func PrintAction(label, action, msg string, t Type) {
+func PrintAction(action engine.ActionEvent) {
 	var message string
-	if label == "" {
-		message = fmt.Sprintf("%s %s", action, msg)
+	if action.Label == "" {
+		message = fmt.Sprintf("%s %s", action.Action, action.Msg)
 	} else {
-		message = fmt.Sprintf("%s %s %s", label, action, msg)
+		message = fmt.Sprintf("%s %s %s", action.Label, action.Action, action.Msg)
 	}
 	var text string
-	switch t {
-	case TypeSuccess:
+	switch action.EventType {
+	case engine.EventSuccess:
 		text = successStyle.Render(message)
-	case TypeStep:
+	case engine.EventStep:
 		text = stepStyle.Render(message)
-	case TypeWarn:
+	case engine.EventWarn:
 		text = warnStyle.Render(message)
+	case engine.EventIgnore:
+		return
 	}
 	lipgloss.Println(text)
 }
 
-func PrintSummary(summary *Summary) {
+func PrintSummary(summary *engine.ExecuteSummary) {
+	for _, action := range *summary.Actions {
+		PrintAction(action)
+	}
 	summaryFields := 7
 	parts := make([]string, 0, summaryFields)
-	if summary.Stowed > 0 {
-		parts = append(parts, fmt.Sprintf("stowed: %d", summary.Stowed))
+	if summary.OperationSummary.Stowed > 0 {
+		parts = append(parts, fmt.Sprintf("stowed: %d", summary.OperationSummary.Stowed))
 	}
-	if summary.Unstowed > 0 {
-		parts = append(parts, fmt.Sprintf("unstowed: %d", summary.Unstowed))
+	if summary.OperationSummary.Unstowed > 0 {
+		parts = append(parts, fmt.Sprintf("unstowed: %d", summary.OperationSummary.Unstowed))
 	}
-	if summary.Replaced > 0 {
-		parts = append(parts, fmt.Sprintf("replaced: %d", summary.Replaced))
+	if summary.OperationSummary.Replaced > 0 {
+		parts = append(parts, fmt.Sprintf("replaced: %d", summary.OperationSummary.Replaced))
 	}
-	if summary.Backed > 0 {
-		parts = append(parts, fmt.Sprintf("backed up: %d", summary.Backed))
+	if summary.OperationSummary.Backed > 0 {
+		parts = append(parts, fmt.Sprintf("backed up: %d", summary.OperationSummary.Backed))
 	}
-	if summary.Adopted > 0 {
-		parts = append(parts, fmt.Sprintf("adopted: %d", summary.Adopted))
+	if summary.OperationSummary.Adopted > 0 {
+		parts = append(parts, fmt.Sprintf("adopted: %d", summary.OperationSummary.Adopted))
 	}
-	if summary.Skipped > 0 {
-		parts = append(parts, fmt.Sprintf("skipped: %d", summary.Skipped))
+	if summary.OperationSummary.Skipped > 0 {
+		parts = append(parts, fmt.Sprintf("skipped: %d", summary.OperationSummary.Skipped))
 	}
-	if summary.UpToDate > 0 {
-		parts = append(parts, fmt.Sprintf("up to date: %d", summary.UpToDate))
+	if summary.OperationSummary.UpToDate > 0 {
+		parts = append(parts, fmt.Sprintf("up to date: %d", summary.OperationSummary.UpToDate))
 	}
 	if len(parts) == 0 {
 		return

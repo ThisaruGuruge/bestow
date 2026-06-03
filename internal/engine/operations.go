@@ -192,24 +192,23 @@ func (e *Engine) getUnstowFileAction(candidate OperationCandidate) (FileAction, 
 		return nil, err
 	}
 	if !exists {
-		return newFileActionSkip(candidate.source, candidate.destination, "destination does not exist"), nil
+		return newFileActionUpToDate(candidate.source, candidate.destination, "destination does not exist"), nil
 	}
 	existing, err := e.fileSystem.GetExistingFileType(candidate.source, candidate.destination)
 	if err != nil {
 		return nil, err
 	}
-	if existing == file.ExistingDir {
+	switch existing {
+	case file.ExistingDir:
 		return nil, &HintedError{
 			Op:   fmt.Sprintf("unstow %s %s", candidate.source, candidate.destination),
 			Hint: fmt.Sprintf("remove the directory %s", candidate.destination),
 			Err:  ErrDestIsDir,
 		}
-	}
-	if existing == file.ExistingManagedSymlink {
-		return newFileActionRemove(candidate.source, candidate.destination), nil
-	}
-	if existing == file.ExistingRegularFile {
+	case file.ExistingRegularFile:
 		return newFileActionSkip(candidate.source, candidate.destination, "regular file"), nil
+	case file.ExistingManagedSymlink:
+		return newFileActionRemove(candidate.source, candidate.destination), nil
 	}
 	e.logger.Warn("destination is not managed by bestow", "destination", candidate.destination, "file_type", existing)
 	return newFileActionSkip(candidate.source, candidate.destination, "unmanaged symlink"), nil
