@@ -16,23 +16,28 @@ import (
 type IgnoreList struct {
 	src          string
 	items        []string
-	fileSystem   FileSystem
+	fileSystem   IgnoreReader
 	logger       *slog.Logger
 	packageLists map[string][]string
 }
 
-func newIgnoreList(src string, fs FileSystem, l *slog.Logger) (*IgnoreList, error) {
-	list := &IgnoreList{src: src, fileSystem: fs, logger: l.With("section", "ignore_handler"), packageLists: make(map[string][]string)}
+type IgnoreReader interface {
+	Exists(path string) (bool, error)
+	ReadLines(path string) ([]string, error)
+}
+
+func newIgnoreList(src string, reader IgnoreReader, l *slog.Logger) (*IgnoreList, error) {
+	list := &IgnoreList{src: src, fileSystem: reader, logger: l.With("section", "ignore_handler"), packageLists: make(map[string][]string)}
 
 	// Load global ignore list
 	configHome := config.AppConfigHome()
-	ignoreItems, err := readIgnoreFile(configHome, fs)
+	ignoreItems, err := readIgnoreFile(configHome, reader)
 	if err != nil {
 		return nil, err
 	}
 
 	//load source ignore list
-	items, err := readIgnoreFile(src, fs)
+	items, err := readIgnoreFile(src, reader)
 	if err != nil {
 		return nil, err
 	}

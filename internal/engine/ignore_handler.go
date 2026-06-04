@@ -12,16 +12,16 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/constant"
 )
 
-func readIgnoreFile(source string, fileSystem FileSystem) ([]string, error) {
+func readIgnoreFile(source string, reader IgnoreReader) ([]string, error) {
 	ignoreFile := filepath.Join(source, constant.IgnoreFile)
-	exists, err := fileSystem.Exists(ignoreFile)
+	exists, err := reader.Exists(ignoreFile)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", ignoreFile, err)
 	}
 	if !exists {
 		return nil, nil
 	}
-	lines, err := fileSystem.ReadLines(ignoreFile)
+	lines, err := reader.ReadLines(ignoreFile)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", ignoreFile, err)
 	}
