@@ -80,7 +80,7 @@ func (e *Engine) Execute(ctx *CommandContext) (*ExecuteSummary, error) {
 	return summary, nil
 }
 
-func (e *Engine) executeFileActions(actions []FileAction) (*ExecuteSummary, error) {
+func (e *Engine) executeFileActions(actions []fileAction) (*ExecuteSummary, error) {
 	summary := &Summary{}
 	actionList := make([]ActionEvent, 0, len(actions))
 	for _, action := range actions {

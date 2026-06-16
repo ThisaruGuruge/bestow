@@ -42,7 +42,7 @@ type OperationCandidate struct {
 	destination string
 }
 
-func (e *Engine) populateOperations(ctx *CommandContext) ([]FileAction, error) {
+func (e *Engine) populateOperations(ctx *CommandContext) ([]fileAction, error) {
 	e.logger.Debug("populating operations", "action", ctx.Action)
 	packageList, err := e.populatePackageList(ctx.Args)
 	if err != nil {
@@ -126,8 +126,8 @@ func (e *Engine) getFileOperations(pkg string) ([]OperationCandidate, error) {
 	return candidates, nil
 }
 
-func (e *Engine) resolveStowOpts(candidates []OperationCandidate, strategy ResolveStrategy) ([]FileAction, error) {
-	actions := make([]FileAction, 0, len(candidates))
+func (e *Engine) resolveStowOpts(candidates []OperationCandidate, strategy ResolveStrategy) ([]fileAction, error) {
+	actions := make([]fileAction, 0, len(candidates))
 	for _, candidate := range candidates {
 		action, err := e.getStowFileAction(candidate, strategy)
 		if err != nil {
@@ -138,8 +138,8 @@ func (e *Engine) resolveStowOpts(candidates []OperationCandidate, strategy Resol
 	return actions, nil
 }
 
-func (e *Engine) resolveUnstowOpts(candidates []OperationCandidate) ([]FileAction, error) {
-	actions := make([]FileAction, 0, len(candidates))
+func (e *Engine) resolveUnstowOpts(candidates []OperationCandidate) ([]fileAction, error) {
+	actions := make([]fileAction, 0, len(candidates))
 	for _, candidate := range candidates {
 		action, err := e.getUnstowFileAction(candidate)
 		if err != nil {
@@ -150,7 +150,7 @@ func (e *Engine) resolveUnstowOpts(candidates []OperationCandidate) ([]FileActio
 	return actions, nil
 }
 
-func (e *Engine) getStowFileAction(candidate OperationCandidate, strategy ResolveStrategy) (FileAction, error) {
+func (e *Engine) getStowFileAction(candidate OperationCandidate, strategy ResolveStrategy) (fileAction, error) {
 	destExists, err := e.fileSystem.Exists(candidate.destination)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (e *Engine) getStowFileAction(candidate OperationCandidate, strategy Resolv
 	}
 }
 
-func (e *Engine) getUnstowFileAction(candidate OperationCandidate) (FileAction, error) {
+func (e *Engine) getUnstowFileAction(candidate OperationCandidate) (fileAction, error) {
 	exists, err := e.fileSystem.Exists(candidate.destination)
 	if err != nil {
 		return nil, err
