@@ -36,7 +36,7 @@ func newIgnoreList(src, configHome string, reader IgnoreReader, l *slog.Logger) 
 	}
 
 	//load source ignore list
-	list.logger.Debug("readong source ignore file", "path", src)
+	list.logger.Debug("reading source ignore file", "path", src)
 	items, err := readIgnoreFile(src, reader)
 	if err != nil {
 		return nil, err
