@@ -69,9 +69,9 @@ func (e *Engine) populateOperations(ctx *CommandContext) ([]fileAction, error) {
 	}
 
 	switch ctx.Action {
-	case ActionStow:
+	case CommandStow:
 		return e.resolveStowOpts(candidates, ctx.ConflictStrategy)
-	case ActionUnstow:
+	case CommandUnstow:
 		// TODO: Remove empty parents should be config and unstow should handle it
 		return e.resolveUnstowOpts(candidates)
 	}

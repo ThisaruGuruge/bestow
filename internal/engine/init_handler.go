@@ -19,7 +19,7 @@ type InitContext struct {
 	ConfigDir  string
 }
 
-func (e *Engine) Init(ctx *InitContext) (*ExecuteSummary, error) {
+func (e *Engine) Init(ctx *InitContext) (*ExecuteResult, error) {
 	e.logger.Debug("initializing bestow")
 	configFile := filepath.Join(ctx.ConfigDir, constant.ConfigFile)
 	ignoreFile := filepath.Join(ctx.ConfigDir, constant.IgnoreFile)
@@ -38,7 +38,7 @@ func (e *Engine) Init(ctx *InitContext) (*ExecuteSummary, error) {
 		return nil, err
 	}
 	actions := []ActionEvent{*configAction, *ignoreAction}
-	return &ExecuteSummary{Actions: actions, OperationSummary: &Summary{}}, nil
+	return &ExecuteResult{Events: actions, Summary: &OpsSummary{}}, nil
 }
 
 func (e *Engine) checkExistingFiles(configFile, ignoreFile string, force bool) error {

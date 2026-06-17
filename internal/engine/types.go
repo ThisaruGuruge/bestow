@@ -10,13 +10,13 @@ import "github.com/ThisaruGuruge/bestow/internal/file"
 var _ FileSystem = (*file.Handler)(nil)
 var _ FileSystem = (*file.NoWriteHandler)(nil)
 
-type ExecuteSummary struct {
-	Actions          []ActionEvent
-	OperationSummary *Summary
-	DryRun           bool
+type ExecuteResult struct {
+	Events  []ActionEvent
+	Summary *OpsSummary
+	DryRun  bool
 }
 
-type Summary struct {
+type OpsSummary struct {
 	Stowed   int
 	Unstowed int
 	Replaced int

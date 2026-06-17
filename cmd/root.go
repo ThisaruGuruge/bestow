@@ -42,6 +42,8 @@ var rootCmd = &cobra.Command{
 	Version:       version,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Note: Setup logging should run for all sub commands.
+		// If a subcommand defines its own PersistentPreRunE, it should call this.
 		return setupLogging(cmd)
 	},
 }
@@ -87,7 +89,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolP(flagDryRun, "n", false, "run the command without actually making the file system changes")
 	rootCmd.PersistentFlags().BoolP(flagVerbose, "v", false, "print verbose logs")
 	rootCmd.PersistentFlags().BoolP(flagQuiet, "q", false, "quiet logs; only print the summary")
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, flagConfigFile, "c", "", "provide custom config file")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, flagConfigFile, "", "provide custom config file")
 	rootCmd.PersistentFlags().String(flagProfile, "default", "profile to run the command")
 
 	rootCmd.MarkFlagsMutuallyExclusive(flagQuiet, flagVerbose)

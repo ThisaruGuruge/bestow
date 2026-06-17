@@ -84,26 +84,28 @@ func (o *Output) PrintAction(action engine.ActionEvent, label string) {
 		text = warnStyle.Render(message)
 	case engine.EventSkip:
 		text = skipStyle.Render(message)
+	case engine.EventUndo:
+		text = warnStyle.Render(message)
 	case engine.EventIgnore:
 		return
 	}
 	lipgloss.Println(text)
 }
 
-func (o *Output) PrintSummary(summary *engine.ExecuteSummary) {
+func (o *Output) PrintSummary(summary *engine.ExecuteResult) {
 	var label string
 	if summary.DryRun {
 		label = "[dryrun]"
 	}
 	if o.OutputLevel != Quiet {
-		for _, action := range summary.Actions {
+		for _, action := range summary.Events {
 			o.PrintAction(action, label)
 		}
-		o.printSummaryLine(summary.OperationSummary)
+		o.printSummaryLine(summary.Summary)
 	}
 }
 
-func (o *Output) printSummaryLine(summary *engine.Summary) {
+func (o *Output) printSummaryLine(summary *engine.OpsSummary) {
 	summaryFields := 7
 	parts := make([]string, 0, summaryFields)
 	if summary.Stowed > 0 {
@@ -128,6 +130,7 @@ func (o *Output) printSummaryLine(summary *engine.Summary) {
 		parts = append(parts, fmt.Sprintf("up-to-date: %d", summary.UpToDate))
 	}
 	if len(parts) == 0 {
+		lipgloss.Println("no operations to execute")
 		return
 	}
 	lipgloss.Println(strings.Join(parts, "   "))

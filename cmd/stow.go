@@ -56,7 +56,7 @@ var stowCmd = &cobra.Command{
 		}
 		eng, err := engine.NewEngine(&engineCtx, dryrun, appLogger)
 		cmdCtx := engine.CommandContext{
-			Action:           engine.ActionStow,
+			Action:           engine.CommandStow,
 			Args:             args,
 			ConflictStrategy: strategy,
 		}

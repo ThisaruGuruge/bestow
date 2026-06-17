@@ -12,18 +12,18 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/file"
 )
 
-type Action int
+type CommandAction int
 
 const (
-	ActionStow Action = iota
-	ActionUnstow
+	CommandStow CommandAction = iota
+	CommandUnstow
 )
 
-func (a Action) String() string {
+func (a CommandAction) String() string {
 	switch a {
-	case ActionStow:
+	case CommandStow:
 		return "stow"
-	case ActionUnstow:
+	case CommandUnstow:
 		return "unstow"
 	default:
 		return "unknown action"
@@ -31,7 +31,7 @@ func (a Action) String() string {
 }
 
 type CommandContext struct {
-	Action           Action
+	Action           CommandAction
 	Args             []string
 	ConflictStrategy ResolveStrategy
 }
@@ -73,7 +73,7 @@ func NewEngine(cfg *EngineContext, dryRun bool, l *slog.Logger) (*Engine, error)
 }
 
 // Execute will execute the operation (stow, unstow) with the provided context.
-func (e *Engine) Execute(ctx *CommandContext) (*ExecuteSummary, error) {
+func (e *Engine) Execute(ctx *CommandContext) (*ExecuteResult, error) {
 	actions, err := e.populateOperations(ctx)
 	if err != nil {
 		return nil, err
@@ -104,13 +104,14 @@ func (e *Engine) checkPreflight(actions []fileAction) error {
 	return nil
 }
 
-func (e *Engine) executeFileActions(actions []fileAction) (*ExecuteSummary, error) {
-	summary := &Summary{}
-	actionList := make([]ActionEvent, 0, len(actions))
+func (e *Engine) executeFileActions(actions []fileAction) (*ExecuteResult, error) {
+	summary := &OpsSummary{}
+	events := make([]ActionEvent, 0, len(actions))
+	completedActions := make([]fileAction, 0, len(actions))
 	for _, action := range actions {
-		fileActions, err := action.execute(e.fileSystem)
+		operationEvents, err := action.execute(e.fileSystem)
 		if err != nil {
-			return nil, err
+			return e.undoFileActions(completedActions, summary, events)
 		}
 		actionType := action.kind()
 		switch actionType {
@@ -131,12 +132,32 @@ func (e *Engine) executeFileActions(actions []fileAction) (*ExecuteSummary, erro
 		default:
 			return nil, fmt.Errorf("undefined action %d", actionType)
 		}
-		actionList = append(actionList, fileActions...)
+		events = append(events, operationEvents...)
+		completedActions = append(completedActions, action)
 	}
-	return &ExecuteSummary{
-		Actions:          actionList,
-		OperationSummary: summary,
-		DryRun:           e.dryRun,
+	return &ExecuteResult{
+		Events:  events,
+		Summary: summary,
+		DryRun:  e.dryRun,
+	}, nil
+}
+
+func (e *Engine) undoFileActions(actions []fileAction, summary *OpsSummary, events []ActionEvent) (*ExecuteResult, error) {
+	for _, action := range actions {
+		operationEvents, err := action.undo(e.fileSystem)
+		if err != nil {
+			return &ExecuteResult{
+				Events:  events,
+				Summary: summary,
+				DryRun:  e.dryRun,
+			}, err
+		}
+		events = append(events, operationEvents...)
+	}
+	return &ExecuteResult{
+		Events:  events,
+		Summary: summary,
+		DryRun:  e.dryRun,
 	}, nil
 }
 
