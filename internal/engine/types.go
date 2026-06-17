@@ -27,10 +27,6 @@ type Summary struct {
 }
 
 type FileSystem interface {
-	// ListFiles returns a list of all the files in a given parent directory, excluding the directories.
-	// The file list includes the full paths of the files found.
-	ListFiles(parent string) ([]string, error)
-
 	// ListDirs lists all the subdirectories in a given parent directory.
 	ListDirs(parent string) ([]string, error)
 

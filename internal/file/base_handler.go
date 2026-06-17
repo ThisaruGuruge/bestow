@@ -22,31 +22,6 @@ type baseHandler struct {
 	logger *slog.Logger
 }
 
-// ListFiles returns a list of all the files in a given parent directory, excluding the directories.
-// The file list includes the full paths of the files found.
-func (h *baseHandler) ListFiles(parent string) ([]string, error) {
-	isDir, err := h.IsDir(parent)
-	if err != nil {
-		return nil, err
-	}
-	if !isDir {
-		return nil, fmt.Errorf("stat %s: %w", parent, ErrNotDir)
-	}
-	files, err := os.ReadDir(parent)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]string, 0, len(files))
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		result = append(result, filepath.Join(parent, file.Name()))
-	}
-	h.logger.Debug("found files in the directory", "directory", parent, "files", result)
-	return result, nil
-}
-
 // ListDirs lists all the subdirectories in a given parent directory.
 // The list contains the full path of the subdirectories found.
 func (h *baseHandler) ListDirs(parent string) ([]string, error) {
