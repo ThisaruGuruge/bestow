@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/log"
+	charmlog "github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -28,7 +28,7 @@ var version = "dev"
 var cfgFile string
 
 var (
-	logHandler *log.Logger
+	logHandler *charmlog.Logger
 	appLogger  *slog.Logger
 	appOutput  *output.Output
 )
@@ -69,11 +69,11 @@ func Execute() {
 
 func init() {
 	// Setting logger in the init method to avoid falling back to default logger.
-	opts := log.Options{
-		Level:           log.InfoLevel,
+	opts := charmlog.Options{
+		Level:           charmlog.InfoLevel,
 		ReportTimestamp: false,
 	}
-	logHandler = log.NewWithOptions(os.Stderr, opts)
+	logHandler = charmlog.NewWithOptions(os.Stderr, opts)
 	appLogger = slog.New(logHandler)
 
 	appOutput = output.NewOutput(output.Normal)

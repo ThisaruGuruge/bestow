@@ -8,7 +8,7 @@ import (
 	"github.com/ThisaruGuruge/bestow/internal/config"
 	"github.com/ThisaruGuruge/bestow/internal/engine"
 	"github.com/ThisaruGuruge/bestow/internal/output"
-	"github.com/charmbracelet/log"
+	charmlog "github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -23,10 +23,10 @@ func setupLogging(cmd *cobra.Command) error {
 		return err
 	}
 	if verbose {
-		logHandler.SetLevel(log.DebugLevel)
+		logHandler.SetLevel(charmlog.DebugLevel)
 	}
 	if quiet {
-		logHandler.SetLevel(log.ErrorLevel)
+		logHandler.SetLevel(charmlog.ErrorLevel)
 		appOutput.SetLevel(output.Quiet)
 	}
 	return nil
