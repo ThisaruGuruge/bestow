@@ -7,8 +7,6 @@ package engine
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 )
 
 const (
@@ -438,19 +436,4 @@ func (f *fileActionRemove) undo(fs FileSystem) ([]ActionEvent, error) {
 
 func (f *fileActionRemove) kind() ActionKind {
 	return Remove
-}
-
-func existingParent(path string, fs FileSystem) (string, error) {
-	exists, err := fs.Exists(path)
-	if err != nil {
-		return "", err
-	}
-	if !exists {
-		parent := filepath.Dir(path)
-		if filepath.Clean(parent) == string(os.PathSeparator) {
-			return parent, nil
-		}
-		return existingParent(parent, fs)
-	}
-	return path, nil
 }
