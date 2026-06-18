@@ -31,6 +31,7 @@ const (
 func addOperationFlags(fs *pflag.FlagSet) {
 	fs.StringP(flagSource, "s", "", "root directory of the source files (e.g. `dotfiles` repo)")
 	fs.StringP(flagDestination, "d", "", "destination directory of the symlinks (e.g. `$HOME` directory)")
+	fs.SortFlags = false
 }
 
 func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
