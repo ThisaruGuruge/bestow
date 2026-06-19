@@ -12,8 +12,8 @@ import (
 
 // TODO: Make this configurable or make it passable as a parameter
 const (
-	dirPermissions  = 0755
-	filePermissions = 0644
+	dirPermissions  = 0o755
+	filePermissions = 0o644
 )
 
 // Handler is the implementation of the System using io, os, and bufio go modules.

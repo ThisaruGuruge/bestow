@@ -34,7 +34,7 @@ func TestGetExistingFileType(t *testing.T) {
 			dir := t.TempDir()
 			src := filepath.Join(dir, "src_file")
 			dst := filepath.Join(dir, "dst_file")
-			if err := os.WriteFile(src, []byte("src file"), 0644); err != nil {
+			if err := os.WriteFile(src, []byte("src file"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if tc.setup != nil {

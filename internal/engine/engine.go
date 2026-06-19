@@ -5,6 +5,7 @@ All Rights Reversed (ɔ)
 package engine
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -76,30 +77,39 @@ func NewEngine(cfg *EngineConfig, dryRun bool, l *slog.Logger) (*Engine, error) 
 }
 
 // Execute will execute the operation (stow, unstow) with the provided context.
-func (e *Engine) Execute(ctx *CommandContext) (*ExecuteResult, error) {
-	actions, err := e.populateOperations(ctx)
+func (e *Engine) Execute(ctx context.Context, cfg *CommandConfig) (*ExecuteResult, error) {
+	actions, err := e.populateOperations(cfg)
 	if err != nil {
 		return nil, err
 	}
-	summary, err := e.executeFileActions(actions)
+	summary, err := e.executeFileActions(ctx, actions)
 	if err != nil {
 		return nil, err
 	}
 	return summary, nil
 }
 
-func (e *Engine) executeFileActions(actions []fileAction) (*ExecuteResult, error) {
+// TODO: Calculate the summary when undo is ran
+func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (*ExecuteResult, error) {
 	summary := &OpsSummary{}
 	events := make([]ActionEvent, 0, len(actions))
 	completedActions := make([]fileAction, 0, len(actions))
 	for _, action := range actions {
+		// Handle cancellations mid operation
+		if err := ctx.Err(); err != nil {
+			undoResult, undoErr := e.undoFileActions(completedActions, summary, events)
+			if undoErr != nil {
+				return undoResult, fmt.Errorf("undo failed: %w; execution failed: %w", undoErr, err)
+			}
+			return undoResult, err
+		}
 		operationEvents, executeErr := action.execute(e.fileSystem)
 		if executeErr != nil {
-			summary, undoErr := e.undoFileActions(completedActions, summary, events)
+			undoResult, undoErr := e.undoFileActions(completedActions, summary, events)
 			if undoErr != nil {
-				return summary, undoErr
+				return undoResult, fmt.Errorf("undo failed: %w; execution failed: %w", undoErr, executeErr)
 			}
-			return summary, executeErr
+			return undoResult, executeErr
 		}
 		actionType := action.kind()
 		switch actionType {

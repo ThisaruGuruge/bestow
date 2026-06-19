@@ -368,9 +368,8 @@ func (f *fileActionAdopt) execute(fs FileSystem) ([]ActionEvent, error) {
 
 func (f *fileActionAdopt) undo(fs FileSystem) ([]ActionEvent, error) {
 	if err := fs.Remove(f.destination); err != nil {
-		// TODO: Return an error with corrupted state message
 		f.logger.Warn(corruptedSystemErrMsg, "action", "move", "source", f.source, "destination", f.destination)
-		return nil, err
+		return nil, fmt.Errorf("file system in corrupted state; manual intervention needed: %w", err)
 	}
 	removeStep := ActionEvent{
 		Action:    actionRemove,

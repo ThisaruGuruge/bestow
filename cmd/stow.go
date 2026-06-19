@@ -63,10 +63,9 @@ var stowCmd = &cobra.Command{
 			Args:             args,
 			ConflictStrategy: strategy,
 		}
-		if err != nil {
-			return err
-		}
-		summary, err := eng.Execute(&cmdCtx)
+		summary, err := eng.Execute(cmd.Context(), &cmdCfg)
+
+		// TODO: Decide on "What to Print" when error occurrs
 		appOutput.PrintSummary(summary)
 		if err != nil {
 			return err

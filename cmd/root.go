@@ -5,6 +5,7 @@ All Rights Reversed (ɔ)
 package cmd
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -46,8 +47,8 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() {
-	err := rootCmd.Execute()
+func Execute(ctx context.Context) {
+	err := rootCmd.ExecuteContext(ctx)
 	if err != nil {
 		var hintedError *engine.HintedError
 		var conflictError *engine.ConflictError

@@ -54,7 +54,6 @@ func XdgConfigHome() string {
 	return filepath.Join(home, ConfigDir)
 }
 
-// TODO: Support directory-level config file for different source and destination options
 func NewConfig(viper *viper.Viper, l *slog.Logger) (*Config, error) {
 	l.Debug("loading configs")
 

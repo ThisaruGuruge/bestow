@@ -78,4 +78,7 @@ func init() {
 
 	initCmd.Flags().SortFlags = false
 	initCmd.PersistentFlags().SortFlags = false
+
+	// To avoid showing the long default ignore list on help text
+	initCmd.Flags().Lookup(flagInitIgnoreList).DefValue = "common dotfile ignore patterns"
 }
