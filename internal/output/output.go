@@ -77,7 +77,7 @@ func (o *Output) PrintAction(action engine.ActionEvent, label string) {
 	case engine.EventIgnore:
 		return
 	}
-	lipgloss.Println(text)
+	_, _ = lipgloss.Println(text)
 }
 
 func (o *Output) PrintSummary(summary *engine.ExecuteResult) {
@@ -127,34 +127,34 @@ func (o *Output) printSummaryLine(summary *engine.OpsSummary) {
 		parts = append(parts, fmt.Sprintf("reverted: %d", summary.Reverted))
 	}
 	if len(parts) == 0 {
-		lipgloss.Println("no operations to execute")
+		_, _ = lipgloss.Println("no operations to execute")
 		return
 	}
-	lipgloss.Println(strings.Join(parts, "   "))
+	_, _ = lipgloss.Println(strings.Join(parts, "   "))
 }
 
 func (o *Output) PrintHint(hint string) {
 	message := "[hint] " + hint
-	lipgloss.Fprintln(os.Stderr, o.hintStyle.Render(message))
+	_, _ = lipgloss.Fprintln(os.Stderr, o.hintStyle.Render(message))
 }
 
 func (o *Output) PrintConflict(conflicts []engine.DestinationConflict) {
-	lipgloss.Fprintln(os.Stderr, o.errStyle.Render("conflicts:"))
+	_, _ = lipgloss.Fprintln(os.Stderr, o.errStyle.Render("conflicts:"))
 	for _, conflict := range conflicts {
-		lipgloss.Fprintln(os.Stderr, o.errStyle.Render(conflict.Destination))
+		_, _ = lipgloss.Fprintln(os.Stderr, o.errStyle.Render(conflict.Destination))
 		for _, source := range conflict.Sources {
-			lipgloss.Fprintln(os.Stderr, o.warnStyle.Render("-", source))
+			_, _ = lipgloss.Fprintln(os.Stderr, o.warnStyle.Render("-", source))
 		}
 	}
 }
 
 func (o *Output) PrintAggregatedError(err *engine.AggregatedError) {
-	lipgloss.Fprintln(os.Stderr, o.errStyle.Render(err.Msg))
+	_, _ = lipgloss.Fprintln(os.Stderr, o.errStyle.Render(err.Msg))
 	for _, item := range err.Items {
-		lipgloss.Fprintln(os.Stderr, o.errStyle.Render(fmt.Sprintf("  %s", item.Error())))
+		_, _ = lipgloss.Fprintln(os.Stderr, o.errStyle.Render(fmt.Sprintf("  %s", item.Error())))
 	}
 }
 
 func (o *Output) PrintCommandError(err error) {
-	lipgloss.Fprintln(os.Stderr, o.errStyle.Render(err.Error()))
+	_, _ = lipgloss.Fprintln(os.Stderr, o.errStyle.Render(err.Error()))
 }

@@ -72,10 +72,7 @@ func NewConfig(viper *viper.Viper, l *slog.Logger) (*Config, error) {
 		return nil, fmt.Errorf("profile %s: %w", profileName, ErrNotFound)
 	}
 
-	cfg := Config{
-		Source:      profile.Source,
-		Destination: profile.Destination,
-	}
+	cfg := Config(profile)
 
 	if err := setDefaultDestination(&cfg, l); err != nil {
 		return nil, err

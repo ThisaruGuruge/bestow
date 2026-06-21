@@ -131,8 +131,6 @@ func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (
 	}, nil
 }
 
-func (e *Engine) executeFileAction() {}
-
 func (e *Engine) undoFileActions(actions []fileAction, summary *OpsSummary, events []ActionEvent) (*ExecuteResult, error) {
 	// Undo the completed actions from the last action to the top
 	for _, action := range slices.Backward(actions) {

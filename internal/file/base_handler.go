@@ -90,7 +90,7 @@ func (h *baseHandler) IsDir(path string) (bool, error) {
 
 // IsEmptyDir returns true if the provided path is empty. It will return an error is the provided path is not a
 // directory.
-func (h *baseHandler) IsEmptyDir(path string) (bool, error) {
+func (h *baseHandler) IsEmptyDir(path string) (empty bool, err error) {
 	h.logger.Debug("checking if the provided path is an empty directory", "path", path)
 	isDir, err := h.IsDir(path)
 	if err != nil {
@@ -103,7 +103,11 @@ func (h *baseHandler) IsEmptyDir(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 
 	_, err = f.ReadDir(1)
 	if errors.Is(err, io.EOF) {
@@ -129,13 +133,17 @@ func (h *baseHandler) Exists(path string) (bool, error) {
 }
 
 // ReadLines reads the content of a file in the given path and returns the lines of text as a list of strings.
-func (h *baseHandler) ReadLines(path string) ([]string, error) {
+func (h *baseHandler) ReadLines(path string) (lines []string, err error) {
 	h.logger.Debug("reading the file", "path", path)
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
 	var result []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
