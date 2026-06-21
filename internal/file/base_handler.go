@@ -88,8 +88,8 @@ func (h *baseHandler) IsDir(path string) (bool, error) {
 	return stat.IsDir(), nil
 }
 
-// IsEmptyDir returns true if the provided path is empty. It will return an error is the provided path is not a
-// directory.
+// IsEmptyDir returns true if the provided path is empty. Returns true if the path is a directory. False, if the path
+// is not a directory. Returns an error if any IO error occurred.
 func (h *baseHandler) IsEmptyDir(path string) (empty bool, err error) {
 	h.logger.Debug("checking if the provided path is an empty directory", "path", path)
 	isDir, err := h.IsDir(path)
