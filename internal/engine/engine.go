@@ -84,12 +84,12 @@ func (e *Engine) Execute(ctx context.Context, cfg *CommandConfig) (*ExecuteResul
 	}
 	summary, err := e.executeFileActions(ctx, actions)
 	if err != nil {
-		return nil, err
+		// Return the partial result to print
+		return summary, err
 	}
 	return summary, nil
 }
 
-// TODO: Calculate the summary when undo is ran
 func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (*ExecuteResult, error) {
 	summary := &OpsSummary{}
 	events := make([]ActionEvent, 0, len(actions))
@@ -101,7 +101,7 @@ func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (
 			if undoErr != nil {
 				return undoResult, fmt.Errorf("undo failed: %w; execution failed: %w", undoErr, err)
 			}
-			return undoResult, err
+			return undoResult, fmt.Errorf("operation interrupted; reverted changes: %w", err)
 		}
 		operationEvents, executeErr := action.execute(e.fileSystem)
 		if executeErr != nil {
@@ -111,27 +111,18 @@ func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (
 			}
 			return undoResult, executeErr
 		}
-		actionType := action.kind()
-		switch actionType {
-		case UpToDate:
-			summary.UpToDate += 1
-		case Skip:
-			summary.Skipped += 1
-		case Link:
-			summary.Stowed += 1
-		case Replace:
-			summary.Replaced += 1
-		case Backup:
-			summary.BackedUp += 1
-		case Adopt:
-			summary.Adopted += 1
-		case Remove:
-			summary.Unstowed += 1
-		default:
-			return nil, fmt.Errorf("undefined action %d", actionType)
+		if err := e.updateSummary(action, summary, false); err != nil {
+			return &ExecuteResult{
+				Events:  events,
+				Summary: summary,
+				DryRun:  e.dryRun,
+			}, err
 		}
 		events = append(events, operationEvents...)
-		completedActions = append(completedActions, action)
+		if kind := action.kind(); kind != Skip && kind != UpToDate {
+			completedActions = append(completedActions, action)
+		}
+		e.logger.Debug("executed action", "action", action, "summary", summary)
 	}
 	return &ExecuteResult{
 		Events:  events,
@@ -140,11 +131,20 @@ func (e *Engine) executeFileActions(ctx context.Context, actions []fileAction) (
 	}, nil
 }
 
+func (e *Engine) executeFileAction() {}
+
 func (e *Engine) undoFileActions(actions []fileAction, summary *OpsSummary, events []ActionEvent) (*ExecuteResult, error) {
 	// Undo the completed actions from the last action to the top
 	for _, action := range slices.Backward(actions) {
 		operationEvents, err := action.undo(e.fileSystem)
 		if err != nil {
+			return &ExecuteResult{
+				Events:  events,
+				Summary: summary,
+				DryRun:  e.dryRun,
+			}, err
+		}
+		if err := e.updateSummary(action, summary, true); err != nil {
 			return &ExecuteResult{
 				Events:  events,
 				Summary: summary,
@@ -243,4 +243,31 @@ func (e *Engine) filterPackages(candidates []string) ([]string, error) {
 		result = append(result, candidate)
 	}
 	return result, nil
+}
+
+func (e *Engine) updateSummary(action fileAction, summary *OpsSummary, isUndo bool) error {
+	if isUndo {
+		summary.Reverted += 1
+		return nil
+	}
+	actionType := action.kind()
+	switch actionType {
+	case UpToDate:
+		summary.UpToDate += 1
+	case Skip:
+		summary.Skipped += 1
+	case Link:
+		summary.Stowed += 1
+	case Replace:
+		summary.Replaced += 1
+	case Backup:
+		summary.BackedUp += 1
+	case Adopt:
+		summary.Adopted += 1
+	case Remove:
+		summary.Unstowed += 1
+	default:
+		return fmt.Errorf("undefined action %d", actionType)
+	}
+	return nil
 }

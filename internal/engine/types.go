@@ -24,6 +24,7 @@ type OpsSummary struct {
 	Adopted  int
 	Skipped  int
 	UpToDate int
+	Reverted int
 }
 
 type FileSystem interface {
