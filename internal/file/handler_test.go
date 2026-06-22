@@ -211,6 +211,119 @@ func TestHandler_IsEmptyDir(t *testing.T) {
 	}
 }
 
+func TestHandler_Remove(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		setup     func(t *testing.T, dir string)
+		wantErr   bool
+		wantErrIs error
+		handler   Handler
+	}{
+		{
+			name: "remove file",
+			path: "src_file",
+			setup: func(t *testing.T, path string) {
+				if err := os.WriteFile(path, []byte("test file content"), writePerm); err != nil {
+					t.Fatal(err)
+				}
+			},
+			handler: *NewHandler(newTestLogger()),
+		},
+		{
+			name: "remove dir",
+			path: "src_dir",
+			setup: func(t *testing.T, path string) {
+				if err := os.Mkdir(path, writePerm); err != nil {
+					t.Fatal(err)
+				}
+			},
+			handler: *NewHandler(newTestLogger()),
+		},
+		{
+			name:    "remove non-existing",
+			path:    "src_dir",
+			setup:   func(t *testing.T, path string) {},
+			handler: *NewHandler(newTestLogger()),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, tc.path)
+			tc.setup(t, path)
+			err := tc.handler.Remove(path)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if err != nil {
+				if errors.Is(err, tc.wantErrIs) {
+					return
+				}
+				t.Fatalf("errors.Is(%v), want: %v", err, tc.wantErrIs)
+			}
+		})
+	}
+}
+
+func TestHandler_Move(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, src, dest string)
+		wantErr   bool
+		wantErrIs error
+		handler   Handler
+	}{
+		{
+			name: "move file",
+			setup: func(t *testing.T, src, _ string) {
+				if err := os.WriteFile(src, []byte("test file content"), writePerm); err != nil {
+					t.Fatal(err)
+				}
+			},
+			handler: *NewHandler(newTestLogger()),
+		},
+		{
+			name: "move no perm",
+			setup: func(t *testing.T, src, dest string) {
+				if err := os.WriteFile(src, []byte("test file content"), writePerm); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chmod(filepath.Dir(dest), noWritePerm); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(filepath.Dir(dest), writePerm) })
+			},
+			handler:   *NewHandler(newTestLogger()),
+			wantErr:   true,
+			wantErrIs: os.ErrPermission,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			src := filepath.Join(dir, "src")
+			dest := filepath.Join(dir, "dest")
+			tc.setup(t, src, dest)
+			err := tc.handler.Move(src, dest)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if err != nil {
+				if errors.Is(err, tc.wantErrIs) {
+					return
+				}
+				t.Fatalf("errors.Is(%v), want: %v", err, tc.wantErrIs)
+			}
+			_, err = os.Stat(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
