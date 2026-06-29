@@ -40,10 +40,19 @@ func loadConfig(cmd *cobra.Command) (*config.Config, error) {
 			Hint: "run the command `bestow init` to initialize",
 		}
 	}
-	bindOperationalFlags(cmd, viper.GetViper())
+	// Profile flag is bound before the config is loaded so the viper configs does not pollute with provided profile keys
+	if f := cmd.Flags().Lookup(flagProfile); f != nil {
+		_ = viper.BindPFlag(flagProfile, f)
+	}
 	cfg, err := config.NewConfig(viper.GetViper(), appLogger)
 	if err != nil {
 		return nil, err
+	}
+	if source, _ := stringFlag(cmd.Flags(), flagSource); source != "" {
+		cfg.Source = source
+	}
+	if destination, _ := stringFlag(cmd.Flags(), flagDestination); destination != "" {
+		cfg.Destination = destination
 	}
 	return cfg, nil
 }

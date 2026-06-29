@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -32,23 +31,6 @@ func addOperationFlags(fs *pflag.FlagSet) {
 	fs.StringP(flagSource, "s", "", "root directory of the source files (e.g. `dotfiles` repo)")
 	fs.StringP(flagDestination, "d", "", "destination directory of the symlinks (e.g. `$HOME` directory)")
 	fs.SortFlags = false
-}
-
-func bindOperationalFlags(cmd *cobra.Command, v *viper.Viper) {
-	if f := cmd.Flags().Lookup(flagProfile); f != nil {
-		_ = v.BindPFlag(flagProfile, f)
-	}
-	profile := v.GetString(flagProfile)
-	if profile == "" {
-		profile = "default"
-	}
-	prefix := fmt.Sprintf("profiles.%s", profile)
-	if f := cmd.Flags().Lookup(flagSource); f != nil {
-		_ = v.BindPFlag(prefix+".source", f)
-	}
-	if f := cmd.Flags().Lookup(flagDestination); f != nil {
-		_ = v.BindPFlag(prefix+".destination", f)
-	}
 }
 
 func addConflictResolutionFlags(cmd *cobra.Command) {
