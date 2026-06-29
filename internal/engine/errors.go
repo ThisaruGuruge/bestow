@@ -37,11 +37,11 @@ type AggregatedError struct {
 }
 
 func (e *AggregatedError) Error() string {
-	return fmt.Sprintf("%s: %v", e.Msg, errors.Join(e.Items...).Error())
+	return fmt.Sprintf("%s: %v", e.Msg, e.Items)
 }
 
-func (e *AggregatedError) Unwrap() error {
-	return fmt.Errorf("%s: %w", e.Msg, errors.Join(e.Items...))
+func (e *AggregatedError) Unwrap() []error {
+	return e.Items
 }
 
 // ConflictError represents the errors where stow fails due to conflicts.
