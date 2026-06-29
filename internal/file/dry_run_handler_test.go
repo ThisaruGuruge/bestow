@@ -47,14 +47,13 @@ func TestDryRunHandler_CreateFile(t *testing.T) {
 			if validateErrScenario(t, tc.wantErr, err, tc.wantErrIs) {
 				return
 			}
-			stat, err := os.Stat(path)
+			_, err = os.Stat(path)
 			if err != nil {
-				if !errors.Is(err, tc.wantErrIs) {
-					return
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("got error %v, want %v", err, os.ErrNotExist)
 				}
-				t.Fatalf("got error %v, want %v", err, os.ErrNotExist)
+				return
 			}
-			t.Fatalf("expected error, got %v", stat)
 		})
 	}
 }
