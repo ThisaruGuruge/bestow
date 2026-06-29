@@ -2,8 +2,11 @@ name: "Pull Request Build"
 on: pull_request
 jobs:
   ubuntu-build:
-    name: "Build on Ubuntu"
-    runs-on: ubuntu-latest
+    name: "Build"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v5
@@ -25,3 +28,8 @@ jobs:
 
       - name: "Coverage"
         run: task coverage
+
+      - name: "Upload coverage reports to Codecov"
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
