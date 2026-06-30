@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/redpierrot/bestow/internal/config"
 	"github.com/redpierrot/bestow/internal/engine"
@@ -29,6 +30,13 @@ var initCmd = &cobra.Command{
 		source, err := stringFlag(cmd.Flags(), flagInitSource)
 		if err != nil {
 			return err
+		}
+		if source == "" {
+			appLogger.Warn("no source provided, using current directory")
+			source, err = os.Getwd()
+			if err != nil {
+				return err
+			}
 		}
 		destination, err := stringFlag(cmd.Flags(), flagInitDestination)
 		if err != nil {
